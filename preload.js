@@ -1,24 +1,26 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('jarvis', {
-  // Send a chat message (streaming response via events below)
+  // ── Chat ──────────────────────────────────────────────────────────────
   sendMessage: (text) => ipcRenderer.send('send-message', text),
 
-  // Streaming events
   onChunk: (cb) => ipcRenderer.on('jarvis-chunk', (_e, text) => cb(text)),
-  onDone:  (cb) => ipcRenderer.on('jarvis-done',  (_e)       => cb()),
+  onDone:  (cb) => ipcRenderer.on('jarvis-done',  (_e, data) => cb(data)),
   onError: (cb) => ipcRenderer.on('jarvis-error', (_e, msg)  => cb(msg)),
-
-  // Clean up listeners after each exchange
   offStream: () => {
     ipcRenderer.removeAllListeners('jarvis-chunk');
     ipcRenderer.removeAllListeners('jarvis-done');
     ipcRenderer.removeAllListeners('jarvis-error');
   },
 
-  closeWindow: () => ipcRenderer.send('close-window'),
+  // ── Voice ─────────────────────────────────────────────────────────────
+  // STT: send ArrayBuffer, receive transcribed string
+  transcribeAudio: (audioData, mimeType) =>
+    ipcRenderer.invoke('transcribe-audio', audioData, mimeType),
 
-  // Phase 3+
-  onTTSStart: (cb) => ipcRenderer.on('tts-start', () => cb()),
-  onTTSEnd:   (cb) => ipcRenderer.on('tts-end',   () => cb()),
+  // TTS: send text, receive base64 MP3 string (or null if not configured)
+  speak: (text) => ipcRenderer.invoke('speak', text),
+
+  // ── Window ────────────────────────────────────────────────────────────
+  closeWindow: () => ipcRenderer.send('close-window'),
 });

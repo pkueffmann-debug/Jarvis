@@ -3,13 +3,14 @@ require('dotenv').config();
 const { app, BrowserWindow, Tray, globalShortcut, ipcMain, nativeImage, screen } = require('electron');
 const path = require('path');
 const claude = require('./services/claude');
+const voice  = require('./services/voice');
 
 let mainWindow = null;
 let tray = null;
 const isDev = process.env.NODE_ENV === 'development';
 
-// Conversation history (in-memory; Phase 6 will persist to SQLite)
-const conversationHistory = [];
+// Conversation history (in-memory; Phase 6 persists to SQLite)
+const history = [];
 
 // ── Window ─────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,6 @@ function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    // mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
@@ -87,29 +87,45 @@ function toggleWindow() {
   mainWindow.isVisible() ? mainWindow.hide() : showWindow();
 }
 
-// ── IPC Handlers ───────────────────────────────────────────────────────────
+// ── IPC: Chat ──────────────────────────────────────────────────────────────
 
 ipcMain.on('close-window', () => mainWindow?.hide());
 
 ipcMain.on('send-message', async (_event, userMessage) => {
   try {
     const fullText = await claude.streamChat(
-      conversationHistory,
+      history,
       userMessage,
       (chunk) => mainWindow.webContents.send('jarvis-chunk', chunk)
     );
 
-    // Persist to in-memory history
-    conversationHistory.push({ role: 'user', content: userMessage });
-    conversationHistory.push({ role: 'assistant', content: fullText });
+    history.push({ role: 'user', content: userMessage });
+    history.push({ role: 'assistant', content: fullText });
+    if (history.length > 40) history.splice(0, 2);
 
-    // Keep last 40 turns to avoid exceeding context
-    if (conversationHistory.length > 40) conversationHistory.splice(0, 2);
-
-    mainWindow.webContents.send('jarvis-done');
+    mainWindow.webContents.send('jarvis-done', { fullText });
   } catch (err) {
     console.error('[Claude]', err.message);
     mainWindow.webContents.send('jarvis-error', err.message);
+  }
+});
+
+// ── IPC: Speech-to-Text (Whisper) ──────────────────────────────────────────
+
+ipcMain.handle('transcribe-audio', async (_event, audioData, mimeType) => {
+  const buffer = Buffer.from(audioData);
+  return voice.transcribeAudio(buffer, mimeType || 'audio/webm');
+});
+
+// ── IPC: Text-to-Speech (ElevenLabs) ──────────────────────────────────────
+
+ipcMain.handle('speak', async (_event, text) => {
+  try {
+    const buf = await voice.textToSpeech(text);
+    return buf ? buf.toString('base64') : null;
+  } catch (err) {
+    console.error('[ElevenLabs]', err.message);
+    return null;
   }
 });
 

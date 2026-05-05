@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.29.0",
     "@fontsource/inter": "^5.0.17",
     "dotenv": "^16.4.1"
   }

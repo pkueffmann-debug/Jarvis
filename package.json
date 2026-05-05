@@ -1,0 +1,28 @@
+{
+  "name": "jarvis",
+  "version": "0.1.0",
+  "description": "JARVIS — AI Desktop Assistant",
+  "main": "main.js",
+  "scripts": {
+    "postinstall": "node scripts/create-icon.js",
+    "dev": "concurrently -n vite,electron -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "build": "vite build",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.2.2",
+    "pngjs": "^7.0.0",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "vite": "^5.0.12",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.0.17",
+    "dotenv": "^16.4.1"
+  }
+}

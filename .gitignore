@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+db/jarvis.db
+assets/tray-icon.png
+*.log
+.DS_Store

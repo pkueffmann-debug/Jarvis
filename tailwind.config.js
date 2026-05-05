@@ -16,6 +16,10 @@ module.exports = {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
       keyframes: {
+        'blink': {
+          '0%, 100%': { opacity: '1' },
+          '50%':       { opacity: '0' },
+        },
         'pulse-dot': {
           '0%, 100%': { boxShadow: '0 0 0 0 rgba(16,185,129,0.5)' },
           '50%':       { boxShadow: '0 0 0 5px rgba(16,185,129,0)' },
@@ -35,6 +39,7 @@ module.exports = {
         'typing-1':  'typing 1.2s 0s infinite',
         'typing-2':  'typing 1.2s 0.2s infinite',
         'typing-3':  'typing 1.2s 0.4s infinite',
+        'blink':     'blink 1s step-start infinite',
       },
     },
   },

@@ -57,6 +57,37 @@ function TypingIndicator() {
   );
 }
 
+function ToolStatusBadge({ status }) {
+  if (!status) return null;
+  return (
+    <div className="flex items-center gap-2 mx-8 mb-3 px-3 py-1.5 rounded-lg animate-msg-in"
+         style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+      <div className="w-3 h-3 rounded-full border-2 border-[#6366F1] border-t-transparent animate-spin shrink-0" />
+      <span className="text-[#818CF8] text-xs">{status}</span>
+    </div>
+  );
+}
+
+function GmailBanner({ onConnect, connecting }) {
+  return (
+    <div className="mx-3 mb-3 px-3 py-2.5 rounded-xl flex items-center justify-between gap-2 animate-msg-in"
+         style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+      <div>
+        <p className="text-success text-xs font-medium">Gmail nicht verbunden</p>
+        <p className="text-subtext text-[11px]">Für Email-Zugriff einmalig autorisieren</p>
+      </div>
+      <button
+        onClick={onConnect}
+        disabled={connecting}
+        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-opacity disabled:opacity-50"
+        style={{ background: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)' }}
+      >
+        {connecting ? 'Öffnet…' : 'Verbinden'}
+      </button>
+    </div>
+  );
+}
+
 function SendIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -70,14 +101,12 @@ function SpeakerIcon({ on }) {
   return on ? (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
     </svg>
   ) : (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      <line x1="23" y1="9" x2="17" y2="15" />
-      <line x1="17" y1="9" x2="23" y2="15" />
+      <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
     </svg>
   );
 }
@@ -85,38 +114,59 @@ function SpeakerIcon({ on }) {
 // ── Main Chat ──────────────────────────────────────────────────────────────
 
 export default function Chat() {
-  const [messages, setMessages]   = useState(INITIAL_MESSAGES);
-  const [input, setInput]         = useState('');
-  const [busy, setBusy]           = useState(false);
-  const [streaming, setStreaming] = useState(false);
-  const [speaking, setSpeaking]   = useState(false);
-  const [ttsOn, setTtsOn]         = useState(
-    () => localStorage.getItem('jarvis-tts') !== 'false'
-  );
+  const [messages,    setMessages]   = useState(INITIAL_MESSAGES);
+  const [input,       setInput]      = useState('');
+  const [busy,        setBusy]       = useState(false);
+  const [streaming,   setStreaming]  = useState(false);
+  const [speaking,    setSpeaking]   = useState(false);
+  const [toolStatus,  setToolStatus] = useState('');
+  const [ttsOn,       setTtsOn]      = useState(() => localStorage.getItem('jarvis-tts') !== 'false');
+  const [gmailState,  setGmailState] = useState({ configured: false, authenticated: false });
+  const [gmailConnecting, setGmailConnecting] = useState(false);
 
-  const bottomRef    = useRef(null);
-  const inputRef     = useRef(null);
-  const streamTextRef = useRef('');   // accumulates full response for TTS
-  const ttsOnRef     = useRef(ttsOn); // avoids stale closure in async callbacks
-  const audioRef     = useRef(null);  // current playing Audio element
+  const bottomRef      = useRef(null);
+  const inputRef       = useRef(null);
+  const streamTextRef  = useRef('');
+  const ttsOnRef       = useRef(ttsOn);
+  const audioRef       = useRef(null);
 
   useEffect(() => { ttsOnRef.current = ttsOn; }, [ttsOn]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, busy]);
-
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, busy, toolStatus]);
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // Check Gmail status on mount
+  useEffect(() => {
+    if (!window.jarvis) return;
+    window.jarvis.gmailStatus().then(setGmailState).catch(() => {});
+  }, []);
 
   function toggleTTS() {
     const next = !ttsOn;
     setTtsOn(next);
     localStorage.setItem('jarvis-tts', String(next));
-    // Stop current playback if disabling
-    if (!next && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-      setSpeaking(false);
+    if (!next && audioRef.current) { audioRef.current.pause(); audioRef.current = null; setSpeaking(false); }
+  }
+
+  async function connectGmail() {
+    setGmailConnecting(true);
+    try {
+      const result = await window.jarvis.gmailConnect();
+      if (result.success) {
+        setGmailState({ configured: true, authenticated: true });
+        setMessages((prev) => [...prev, {
+          id: Date.now(), role: 'jarvis',
+          content: '✅ Gmail erfolgreich verbunden! Du kannst jetzt Emails lesen und senden.',
+          streaming: false,
+        }]);
+      } else {
+        setMessages((prev) => [...prev, {
+          id: Date.now(), role: 'jarvis',
+          content: `⚠️ Gmail-Verbindung fehlgeschlagen: ${result.error}`,
+          streaming: false,
+        }]);
+      }
+    } finally {
+      setGmailConnecting(false);
     }
   }
 
@@ -126,15 +176,11 @@ export default function Chat() {
       setSpeaking(true);
       const b64 = await window.jarvis.speak(text);
       if (!b64) { setSpeaking(false); return; }
-
       const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
       audioRef.current = audio;
-      audio.onended  = () => { setSpeaking(false); audioRef.current = null; };
-      audio.onerror  = () => { setSpeaking(false); audioRef.current = null; };
+      audio.onended = audio.onerror = () => { setSpeaking(false); audioRef.current = null; };
       audio.play().catch(() => setSpeaking(false));
-    } catch {
-      setSpeaking(false);
-    }
+    } catch { setSpeaking(false); }
   }
 
   const sendMessage = useCallback((text) => {
@@ -145,46 +191,40 @@ export default function Chat() {
     setBusy(true);
     streamTextRef.current = '';
 
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), role: 'user', content, streaming: false },
-    ]);
-
-    // Stop any currently playing TTS
+    setMessages((prev) => [...prev, { id: Date.now(), role: 'user', content, streaming: false }]);
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setSpeaking(false); }
 
     if (!window.jarvis) {
-      // Browser preview fallback
+      // Browser preview
       setTimeout(() => {
         setBusy(false);
         const id = Date.now() + 1;
-        setMessages((prev) => [...prev, { id, role: 'jarvis', content: '', streaming: true }]);
+        setMessages((p) => [...p, { id, role: 'jarvis', content: '', streaming: true }]);
         setStreaming(true);
-        const words = ['Phase 3 Preview: ', 'Voice ist bereit 🎤 ', '— Whisper + ElevenLabs aktiv.'];
+        const words = ['Phase 4 Preview: ', 'Gmail Tool Use ', 'ist aktiv 📬'];
         let i = 0;
         const t = setInterval(() => {
-          if (i >= words.length) {
-            clearInterval(t);
-            setMessages((prev) => prev.map((m) => m.id === id ? { ...m, streaming: false } : m));
-            setStreaming(false);
-            return;
-          }
-          setMessages((prev) => prev.map((m) => m.id === id ? { ...m, content: m.content + words[i] } : m));
+          if (i >= words.length) { clearInterval(t); setMessages((p) => p.map((m) => m.id === id ? { ...m, streaming: false } : m)); setStreaming(false); return; }
+          setMessages((p) => p.map((m) => m.id === id ? { ...m, content: m.content + words[i] } : m));
           i++;
         }, 250);
       }, 500);
       return;
     }
 
+    window.jarvis.onToolStatus((status) => {
+      setBusy(false);
+      setToolStatus(status);
+    });
+
     window.jarvis.onChunk((chunk) => {
       streamTextRef.current += chunk;
       setBusy(false);
+      setToolStatus('');
       setStreaming(true);
       setMessages((prev) => {
         const last = prev[prev.length - 1];
-        if (last?.streaming) {
-          return prev.map((m) => m.id === last.id ? { ...m, content: m.content + chunk } : m);
-        }
+        if (last?.streaming) return prev.map((m) => m.id === last.id ? { ...m, content: m.content + chunk } : m);
         const id = Date.now();
         return [...prev, { id, role: 'jarvis', content: chunk, streaming: true }];
       });
@@ -194,10 +234,9 @@ export default function Chat() {
       setMessages((prev) => prev.map((m) => m.streaming ? { ...m, streaming: false } : m));
       setStreaming(false);
       setBusy(false);
+      setToolStatus('');
       window.jarvis.offStream();
       inputRef.current?.focus();
-
-      // TTS — use fullText from main process (authoritative) or accumulated ref
       const ttsText = fullText || streamTextRef.current;
       if (ttsText) playTTS(ttsText);
     });
@@ -205,81 +244,58 @@ export default function Chat() {
     window.jarvis.onError((errMsg) => {
       setBusy(false);
       setStreaming(false);
+      setToolStatus('');
       setMessages((prev) => {
-        const hasStreaming = prev.some((m) => m.streaming);
-        const errBubble = { id: Date.now(), role: 'jarvis', content: `⚠️ ${errMsg}`, streaming: false };
-        return hasStreaming ? prev.map((m) => m.streaming ? errBubble : m) : [...prev, errBubble];
+        const err = { id: Date.now(), role: 'jarvis', content: `⚠️ ${errMsg}`, streaming: false };
+        return prev.some((m) => m.streaming) ? prev.map((m) => m.streaming ? err : m) : [...prev, err];
       });
       window.jarvis.offStream();
     });
 
     window.jarvis.sendMessage(content);
-  }, [input, busy, streaming]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [input, busy, streaming]); // eslint-disable-line
 
   function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   }
 
-  const isDisabled = busy || streaming;
-
-  // ── Status label ─────────────────────────────────────────────────────────
-  const statusLabel = speaking ? 'Spricht…' : streaming ? 'Antwortet…' : 'Active';
+  const isDisabled  = busy || streaming;
+  const statusLabel = speaking ? 'Spricht…' : streaming ? 'Antwortet…' : toolStatus ? 'Arbeitet…' : 'Active';
+  const showGmailBanner = window.jarvis && gmailState.configured && !gmailState.authenticated;
 
   return (
     <div
       className="flex flex-col w-[380px] h-[600px] rounded-2xl overflow-hidden"
       style={{
         background: '#0A0A0F',
-        boxShadow:
-          '0 0 0 1px rgba(99,102,241,0.2), 0 24px 64px rgba(0,0,0,0.85), 0 0 48px rgba(99,102,241,0.12)',
+        boxShadow: '0 0 0 1px rgba(99,102,241,0.2), 0 24px 64px rgba(0,0,0,0.85), 0 0 48px rgba(99,102,241,0.12)',
       }}
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-4 py-3.5 shrink-0"
-        style={{
-          background: '#0D0D15',
-          borderBottom: '1px solid rgba(99,102,241,0.15)',
-          WebkitAppRegion: 'drag',
-        }}
+        style={{ background: '#0D0D15', borderBottom: '1px solid rgba(99,102,241,0.15)', WebkitAppRegion: 'drag' }}
       >
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white"
-            style={{ background: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)' }}
-          >
-            J
-          </div>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+               style={{ background: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)' }}>J</div>
           <span className="text-white font-semibold tracking-[0.12em] text-sm">JARVIS</span>
         </div>
 
         <div className="flex items-center gap-2.5" style={{ WebkitAppRegion: 'no-drag' }}>
-          {/* TTS toggle */}
-          <button
-            onClick={toggleTTS}
-            title={ttsOn ? 'Stimme an — klicken zum Deaktivieren' : 'Stimme aus — klicken zum Aktivieren'}
-            className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-              ttsOn ? 'text-[#818CF8]' : 'text-subtext/40'
-            } hover:text-white`}
-          >
+          <button onClick={toggleTTS}
+                  title={ttsOn ? 'Stimme an' : 'Stimme aus'}
+                  className={`w-6 h-6 rounded flex items-center justify-center transition-colors hover:text-white ${ttsOn ? 'text-[#818CF8]' : 'text-subtext/40'}`}>
             <SpeakerIcon on={ttsOn} />
           </button>
-
-          {/* Status */}
           <div className="flex items-center gap-1.5">
-            <div
-              className={`w-2 h-2 rounded-full ${speaking ? 'bg-[#818CF8]' : 'bg-success'} animate-pulse-dot`}
-            />
-            <span className="text-subtext text-[11px] w-[60px]">{statusLabel}</span>
+            <div className={`w-2 h-2 rounded-full ${speaking ? 'bg-[#818CF8]' : 'bg-success'} animate-pulse-dot`} />
+            <span className="text-subtext text-[11px] w-[64px]">{statusLabel}</span>
           </div>
-
-          {/* Close */}
-          <button
-            onClick={() => window.jarvis?.closeWindow()}
-            className="w-5 h-5 rounded flex items-center justify-center text-subtext hover:text-white hover:bg-white/10 transition-colors"
-          >
+          <button onClick={() => window.jarvis?.closeWindow()}
+                  className="w-5 h-5 rounded flex items-center justify-center text-subtext hover:text-white hover:bg-white/10 transition-colors">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </button>
         </div>
@@ -288,26 +304,27 @@ export default function Chat() {
       {/* ── Messages ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
         {messages.map((msg) => <Message key={msg.id} msg={msg} />)}
-        {busy && <TypingIndicator />}
+        {toolStatus && <ToolStatusBadge status={toolStatus} />}
+        {busy && !toolStatus && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
 
+      {/* ── Gmail connect banner ───────────────────────────────────── */}
+      {showGmailBanner && (
+        <GmailBanner onConnect={connectGmail} connecting={gmailConnecting} />
+      )}
+
       {/* ── Input ──────────────────────────────────────────────────── */}
-      <div
-        className="shrink-0 px-3 py-3"
-        style={{ borderTop: '1px solid rgba(99,102,241,0.12)' }}
-      >
-        <div
-          className="flex items-center gap-2 rounded-xl px-3 py-2"
-          style={{ background: '#13131A', border: '1px solid rgba(99,102,241,0.2)' }}
-        >
+      <div className="shrink-0 px-3 py-3" style={{ borderTop: '1px solid rgba(99,102,241,0.12)' }}>
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2"
+             style={{ background: '#13131A', border: '1px solid rgba(99,102,241,0.2)' }}>
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder={isDisabled ? 'JARVIS schreibt…' : 'Frag JARVIS etwas…'}
+            placeholder={isDisabled ? 'JARVIS arbeitet…' : 'Frag JARVIS etwas…'}
             disabled={isDisabled}
             className="flex-1 bg-transparent text-white text-sm outline-none placeholder-subtext/50 disabled:opacity-60"
             style={{ WebkitAppRegion: 'no-drag' }}
@@ -318,18 +335,14 @@ export default function Chat() {
             disabled={!input.trim() || isDisabled}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             style={{
-              background: input.trim() && !isDisabled
-                ? 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)'
-                : 'rgba(99,102,241,0.2)',
+              background: input.trim() && !isDisabled ? 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)' : 'rgba(99,102,241,0.2)',
               WebkitAppRegion: 'no-drag',
             }}
           >
             <SendIcon />
           </button>
         </div>
-        <p className="text-center text-subtext/40 text-[10px] mt-2">
-          ⌘⇧J öffnen · Halten = Spracheingabe
-        </p>
+        <p className="text-center text-subtext/40 text-[10px] mt-2">⌘⇧J öffnen · Halten = Spracheingabe</p>
       </div>
     </div>
   );

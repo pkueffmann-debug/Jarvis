@@ -1,16 +1,20 @@
 require('dotenv').config();
 
-const { app, BrowserWindow, Tray, globalShortcut, ipcMain, nativeImage, screen } = require('electron');
-const path = require('path');
+const { app, BrowserWindow, Tray, globalShortcut, ipcMain, nativeImage, screen, shell } = require('electron');
+const path   = require('path');
 const claude = require('./services/claude');
 const voice  = require('./services/voice');
+const gmail  = require('./services/gmail');
 
 let mainWindow = null;
-let tray = null;
-const isDev = process.env.NODE_ENV === 'development';
+let tray       = null;
+const isDev    = process.env.NODE_ENV === 'development';
 
-// Conversation history (in-memory; Phase 6 persists to SQLite)
+// Conversation history — mutated by claude.streamChat
 const history = [];
+
+// Give gmail service access to the shell for OAuth browser open
+gmail.setOpenUrl((url) => shell.openExternal(url));
 
 // ── Window ─────────────────────────────────────────────────────────────────
 
@@ -39,9 +43,7 @@ function createWindow() {
   }
 
   mainWindow.on('blur', () => {
-    if (mainWindow && !mainWindow.webContents.isDevToolsFocused()) {
-      mainWindow.hide();
-    }
+    if (mainWindow && !mainWindow.webContents.isDevToolsFocused()) mainWindow.hide();
   });
 }
 
@@ -60,31 +62,31 @@ function createTray() {
   tray.on('click', toggleWindow);
 }
 
-// ── Window positioning ─────────────────────────────────────────────────────
+// ── Window position ────────────────────────────────────────────────────────
 
 function getWindowPosition() {
   const { width: ww, height: wh } = mainWindow.getBounds();
   const tb = tray.getBounds();
   const { workArea } = screen.getDisplayNearestPoint({ x: tb.x, y: tb.y });
-
   let x = Math.round(tb.x + tb.width / 2 - ww / 2);
   let y = Math.round(tb.y + tb.height + 4);
-
   x = Math.max(workArea.x + 8, Math.min(x, workArea.x + workArea.width - ww - 8));
   y = Math.max(workArea.y + 8, Math.min(y, workArea.y + workArea.height - wh - 8));
-
   return { x, y };
 }
 
-function showWindow() {
-  const { x, y } = getWindowPosition();
-  mainWindow.setPosition(x, y, false);
-  mainWindow.show();
-  mainWindow.focus();
-}
+function showWindow()  { const p = getWindowPosition(); mainWindow.setPosition(p.x, p.y, false); mainWindow.show(); mainWindow.focus(); }
+function toggleWindow(){ mainWindow.isVisible() ? mainWindow.hide() : showWindow(); }
 
-function toggleWindow() {
-  mainWindow.isVisible() ? mainWindow.hide() : showWindow();
+// ── Tool executor (passed to claude.streamChat) ────────────────────────────
+
+async function toolExecutor(name, input) {
+  switch (name) {
+    case 'get_emails':        return gmail.getEmails(input);
+    case 'get_email_content': return gmail.getEmailContent(input);
+    case 'send_email':        return gmail.sendEmail(input);
+    default:                  return { error: `Unbekanntes Tool: ${name}` };
+  }
 }
 
 // ── IPC: Chat ──────────────────────────────────────────────────────────────
@@ -93,15 +95,11 @@ ipcMain.on('close-window', () => mainWindow?.hide());
 
 ipcMain.on('send-message', async (_event, userMessage) => {
   try {
-    const fullText = await claude.streamChat(
-      history,
-      userMessage,
-      (chunk) => mainWindow.webContents.send('jarvis-chunk', chunk)
-    );
-
-    history.push({ role: 'user', content: userMessage });
-    history.push({ role: 'assistant', content: fullText });
-    if (history.length > 40) history.splice(0, 2);
+    const fullText = await claude.streamChat(history, userMessage, {
+      onChunk:      (chunk)  => mainWindow.webContents.send('jarvis-chunk', chunk),
+      onToolStatus: (status) => mainWindow.webContents.send('jarvis-tool-status', status),
+      onToolUse:    gmail.isConfigured() ? toolExecutor : undefined,
+    });
 
     mainWindow.webContents.send('jarvis-done', { fullText });
   } catch (err) {
@@ -110,16 +108,35 @@ ipcMain.on('send-message', async (_event, userMessage) => {
   }
 });
 
-// ── IPC: Speech-to-Text (Whisper) ──────────────────────────────────────────
+// ── IPC: Gmail auth ────────────────────────────────────────────────────────
 
-ipcMain.handle('transcribe-audio', async (_event, audioData, mimeType) => {
-  const buffer = Buffer.from(audioData);
-  return voice.transcribeAudio(buffer, mimeType || 'audio/webm');
+ipcMain.handle('gmail-status', () => ({
+  configured:     gmail.isConfigured(),
+  authenticated:  gmail.isAuthenticated(),
+}));
+
+ipcMain.handle('gmail-connect', async () => {
+  try {
+    await gmail.getAuth();
+    return { success: true };
+  } catch (err) {
+    console.error('[Gmail OAuth]', err.message);
+    return { success: false, error: err.message };
+  }
 });
 
-// ── IPC: Text-to-Speech (ElevenLabs) ──────────────────────────────────────
+ipcMain.handle('gmail-revoke', () => {
+  gmail.revokeAuth();
+  return { success: true };
+});
 
-ipcMain.handle('speak', async (_event, text) => {
+// ── IPC: STT / TTS ────────────────────────────────────────────────────────
+
+ipcMain.handle('transcribe-audio', async (_e, audioData, mimeType) => {
+  return voice.transcribeAudio(Buffer.from(audioData), mimeType || 'audio/webm');
+});
+
+ipcMain.handle('speak', async (_e, text) => {
   try {
     const buf = await voice.textToSpeech(text);
     return buf ? buf.toString('base64') : null;
@@ -141,8 +158,5 @@ app.whenReady().then(() => {
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
 const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => { if (mainWindow) showWindow(); });
-}
+if (!gotLock) { app.quit(); }
+else { app.on('second-instance', () => { if (mainWindow) showWindow(); }); }

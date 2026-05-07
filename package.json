@@ -4,7 +4,8 @@
   "description": "JARVIS — AI Desktop Assistant",
   "main": "main.js",
   "scripts": {
-    "postinstall": "node scripts/create-icon.js",
+    "postinstall": "node scripts/generate-icon.js",
+    "icon": "node scripts/generate-icon.js",
     "dev": "concurrently -n vite,electron -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "vite build",
     "start": "electron ."
@@ -24,6 +25,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@fontsource/inter": "^5.0.17",
+    "canvas": "^3.2.3",
     "dotenv": "^16.4.1",
     "googleapis": "^144.0.0",
     "node-cron": "^4.2.1",

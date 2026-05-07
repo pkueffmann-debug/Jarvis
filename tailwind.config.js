@@ -28,6 +28,10 @@ module.exports = {
           from: { opacity: '0', transform: 'translateY(6px)' },
           to:   { opacity: '1', transform: 'translateY(0)' },
         },
+        'slide-in-right': {
+          from: { transform: 'translateX(100%)', opacity: '0' },
+          to:   { transform: 'translateX(0)',    opacity: '1' },
+        },
         'typing': {
           '0%, 60%, 100%': { transform: 'translateY(0)', opacity: '0.4' },
           '30%':            { transform: 'translateY(-4px)', opacity: '1' },
@@ -40,6 +44,7 @@ module.exports = {
         'typing-2':  'typing 1.2s 0.2s infinite',
         'typing-3':  'typing 1.2s 0.4s infinite',
         'blink':     'blink 1s step-start infinite',
+        'slide-in-right': 'slide-in-right 0.22s ease-out forwards',
       },
     },
   },

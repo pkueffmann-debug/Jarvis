@@ -19,6 +19,12 @@ html, body, #root {
 ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.6); }
 
+/* Settings slide-in (also defined in tailwind but needed as raw CSS for inline style ref) */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
 /* Waveform recording bars */
 @keyframes waveform-bar {
   from { height: 3px;  opacity: 0.5; }

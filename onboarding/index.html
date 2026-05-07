@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS — Setup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       #06060C;
+    --surface:  #0D0D15;
+    --surface2: #13131E;
+    --surface3: #1A1A28;
+    --accent:   #6366F1;
+    --glow:     #818CF8;
+    --success:  #10B981;
+    --warn:     #F59E0B;
+    --error:    #EF4444;
+    --sub:      #94A3B8;
+    --border:   rgba(99,102,241,0.18);
+  }
+  html, body {
+    height: 100%; width: 100%;
+    background: var(--bg);
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  /* ── Drag region ─────────────────────────────────────────────────── */
+  #drag { height: 28px; -webkit-app-region: drag; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: center; }
+  #drag span { font-size: 11px; color: var(--sub); opacity: .5; letter-spacing: .06em; }
+
+  /* ── Main layout ─────────────────────────────────────────────────── */
+  #app { height: calc(100% - 28px); display: flex; flex-direction: column; padding: 28px 32px 24px; gap: 20px; overflow-y: auto; }
+
+  /* ── Header ──────────────────────────────────────────────────────── */
+  #header { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .logo {
+    width: 72px; height: 72px; border-radius: 18px;
+    background: linear-gradient(135deg, #6366F1 0%, #4338CA 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 700; color: #fff;
+    box-shadow: 0 0 32px rgba(99,102,241,0.45), 0 0 8px rgba(99,102,241,0.3);
+    animation: pulse-logo 3s ease-in-out infinite;
+  }
+  @keyframes pulse-logo {
+    0%,100% { box-shadow: 0 0 32px rgba(99,102,241,0.45), 0 0 8px rgba(99,102,241,0.3); }
+    50%     { box-shadow: 0 0 48px rgba(99,102,241,0.65), 0 0 16px rgba(99,102,241,0.4); }
+  }
+  #header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  #header p  { font-size: 13px; color: var(--sub); text-align: center; line-height: 1.5; max-width: 340px; }
+
+  /* ── Permission list ─────────────────────────────────────────────── */
+  #perms { display: flex; flex-direction: column; gap: 10px; }
+  .perm {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    transition: border-color .2s;
+  }
+  .perm.granted { border-color: rgba(16,185,129,0.35); }
+  .perm-icon { font-size: 22px; text-align: center; }
+  .perm-info { display: flex; flex-direction: column; gap: 2px; }
+  .perm-title { font-weight: 600; font-size: 13.5px; }
+  .perm-desc  { font-size: 11.5px; color: var(--sub); line-height: 1.4; }
+  .perm-badge {
+    font-size: 10.5px; font-weight: 600; padding: 3px 10px;
+    border-radius: 20px; white-space: nowrap; letter-spacing: .03em;
+  }
+  .badge-ok      { background: rgba(16,185,129,.15); color: #10B981; border: 1px solid rgba(16,185,129,.3); }
+  .badge-pending { background: rgba(99,102,241,.12); color: #818CF8; border: 1px solid rgba(99,102,241,.25); cursor: pointer; transition: background .15s; }
+  .badge-pending:hover { background: rgba(99,102,241,.22); }
+  .badge-optional{ background: rgba(148,163,184,.08); color: var(--sub); border: 1px solid rgba(148,163,184,.15); cursor: pointer; }
+  .badge-optional:hover { background: rgba(148,163,184,.14); }
+
+  /* ── Status dot ──────────────────────────────────────────────────── */
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green  { background: #10B981; box-shadow: 0 0 6px #10B981; }
+  .dot-yellow { background: #F59E0B; }
+  .dot-gray   { background: #475569; }
+
+  /* ── Footer ──────────────────────────────────────────────────────── */
+  #footer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  #hint { font-size: 11.5px; color: var(--sub); text-align: center; opacity: .7; }
+  #btn-start {
+    height: 44px; border-radius: 12px; border: none; cursor: pointer;
+    font-size: 14px; font-weight: 600; letter-spacing: .02em;
+    background: linear-gradient(135deg, #6366F1, #818CF8);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+    transition: opacity .15s, transform .1s;
+  }
+  #btn-start:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+  #btn-start:active:not(:disabled){ transform: translateY(0); }
+  #btn-start:disabled { opacity: .35; cursor: not-allowed; }
+  #btn-skip { background: none; border: none; color: var(--sub); font-size: 12px; cursor: pointer; text-align: center; padding: 4px; }
+  #btn-skip:hover { color: #fff; }
+
+  /* ── Spinner ─────────────────────────────────────────────────────── */
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="drag"><span>JARVIS Setup</span></div>
+
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <div class="logo">J</div>
+    <h1>JARVIS braucht Zugriff</h1>
+    <p>Für den vollen Funktionsumfang benötigt JARVIS folgende macOS-Berechtigungen. Klicke auf jedes Element um es zu gewähren.</p>
+  </div>
+
+  <!-- Permissions -->
+  <div id="perms">
+    <!-- 1. Mikrofon -->
+    <div class="perm" id="perm-mic">
+      <div class="perm-icon">🎤</div>
+      <div class="perm-info">
+        <div class="perm-title">Mikrofon</div>
+        <div class="perm-desc">Für Spracheingabe — halte den Voice-Button gedrückt und sprich mit JARVIS.</div>
+      </div>
+      <span class="perm-badge badge-pending" id="badge-mic" onclick="grantMic()">Erlauben</span>
+    </div>
+
+    <!-- 2. Bildschirmaufnahme -->
+    <div class="perm" id="perm-screen">
+      <div class="perm-icon">👁</div>
+      <div class="perm-info">
+        <div class="perm-title">Bildschirmaufnahme</div>
+        <div class="perm-desc">Für Screen Awareness — JARVIS analysiert was auf deinem Bildschirm zu sehen ist.</div>
+      </div>
+      <span class="perm-badge badge-pending" id="badge-screen" onclick="openSettings('screen')">Öffnen ↗</span>
+    </div>
+
+    <!-- 3. Bedienungshilfen -->
+    <div class="perm" id="perm-acc">
+      <div class="perm-icon">⚙️</div>
+      <div class="perm-info">
+        <div class="perm-title">Bedienungshilfen</div>
+        <div class="perm-desc">Für App-Steuerung — JARVIS kann Apps öffnen, schließen und steuern.</div>
+      </div>
+      <span class="perm-badge badge-pending" id="badge-acc" onclick="openSettings('accessibility')">Öffnen ↗</span>
+    </div>
+
+    <!-- 4. Festplattenzugriff -->
+    <div class="perm" id="perm-disk">
+      <div class="perm-icon">📁</div>
+      <div class="perm-info">
+        <div class="perm-title">Festplattenzugriff</div>
+        <div class="perm-desc">Für Dateisuche auf Desktop, Downloads und Dokumente.</div>
+      </div>
+      <span class="perm-badge badge-optional" id="badge-disk" onclick="openSettings('disk')">Optional ↗</span>
+    </div>
+
+    <!-- 5. Kontakte -->
+    <div class="perm" id="perm-contacts">
+      <div class="perm-icon">👤</div>
+      <div class="perm-info">
+        <div class="perm-title">Kontakte</div>
+        <div class="perm-desc">Für iMessage — JARVIS kann Nachrichten an deine Kontakte senden.</div>
+      </div>
+      <span class="perm-badge badge-optional" id="badge-contacts" onclick="openSettings('contacts')">Optional ↗</span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer">
+    <p id="hint">Mikrofon + Bildschirmaufnahme + Bedienungshilfen sind für den vollen Betrieb empfohlen.</p>
+    <button id="btn-start" onclick="completeSetup()" disabled>JARVIS starten →</button>
+    <button id="btn-skip" onclick="completeSetup()">Überspringen — ich richte das später ein</button>
+  </div>
+</div>
+
+<script>
+const STATUS = { microphone: 'not-determined', screenRecording: 'not-determined', accessibility: 'not-determined' };
+
+async function refresh() {
+  if (!window.setup) return;
+  const s = await window.setup.checkPermissions();
+  Object.assign(STATUS, s);
+  updateUI();
+}
+
+function updateUI() {
+  applyBadge('mic',      STATUS.microphone === 'granted');
+  applyBadge('screen',   STATUS.screenRecording === 'granted');
+  applyBadge('acc',      STATUS.accessibility === 'granted');
+
+  const crit = STATUS.microphone === 'granted' || STATUS.screenRecording === 'granted' || STATUS.accessibility === 'granted';
+  document.getElementById('btn-start').disabled = false; // always allow after at least 1 attempt
+  if (STATUS.microphone === 'granted' && STATUS.screenRecording === 'granted' && STATUS.accessibility === 'granted') {
+    document.getElementById('btn-start').textContent = '✓ Alles bereit — JARVIS starten';
+  }
+}
+
+function applyBadge(key, granted) {
+  const badge = document.getElementById('badge-' + key);
+  const perm  = document.getElementById('perm-'  + key);
+  if (!badge || !perm) return;
+  if (granted) {
+    badge.className = 'perm-badge badge-ok';
+    badge.textContent = '✓ Gewährt';
+    badge.onclick = null;
+    perm.classList.add('granted');
+  }
+}
+
+async function grantMic() {
+  const badge = document.getElementById('badge-mic');
+  badge.innerHTML = '<span class="spin"></span>Anfragen…';
+  badge.onclick = null;
+  if (!window.setup) { setTimeout(refresh, 500); return; }
+  await window.setup.requestMicrophone();
+  await new Promise(r => setTimeout(r, 800));
+  await refresh();
+  badge.onclick = grantMic;
+}
+
+async function openSettings(type) {
+  if (!window.setup) return;
+  await window.setup.openSettings(type);
+  // Poll for 10 seconds after opening settings
+  let tries = 0;
+  const t = setInterval(async () => {
+    await refresh();
+    if (++tries >= 10) clearInterval(t);
+  }, 1000);
+}
+
+async function completeSetup() {
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-start').textContent = 'Starten…';
+  if (window.setup) await window.setup.complete();
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', async () => {
+  await refresh();
+  document.getElementById('btn-start').disabled = false;
+  // Refresh when window regains focus (user came back from System Settings)
+  window.addEventListener('focus', refresh);
+});
+</script>
+</body>
+</html>

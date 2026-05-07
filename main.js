@@ -5,6 +5,7 @@ const {
   nativeImage, screen, shell, clipboard, Notification,
 } = require('electron');
 const path      = require('path');
+const fs        = require('fs');
 const claude    = require('./services/claude');
 const voice     = require('./services/voice');
 const gmail     = require('./services/gmail');
@@ -18,9 +19,11 @@ const clipHist  = require('./services/clipboard-history');
 const focus     = require('./services/focus');
 const proactive = require('./services/proactive');
 const notifs    = require('./services/notifications');
+const perms     = require('./services/permissions');
 
-let mainWindow = null;
-let tray       = null;
+let mainWindow      = null;
+let onboardingWindow = null;
+let tray            = null;
 const isDev    = process.env.NODE_ENV === 'development';
 const history  = memory.loadHistory();
 
@@ -58,6 +61,7 @@ function createWindow() {
     width: 380, height: 600,
     show: false, frame: false, resizable: false,
     transparent: true, alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
+    icon: path.join(__dirname, 'assets', 'jarvis.icns'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false,
@@ -74,12 +78,29 @@ function createWindow() {
 // ── Tray ───────────────────────────────────────────────────────────────────
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'assets', 'tray-icon.png');
+  // Use @2x icon for retina displays, fall back to 1x
+  const icon2x = path.join(__dirname, 'assets', 'tray-icon@2x.png');
+  const icon1x = path.join(__dirname, 'assets', 'tray-icon.png');
+  const iconPath = fs.existsSync(icon2x) ? icon2x : icon1x;
+
   let icon = nativeImage.createFromPath(iconPath);
-  if (icon.isEmpty()) icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAANElEQVR42mNk+M9Qz0BFwKimBqimBqimBqimBqimBqimBqimBqimBqimBqimBqimBqimBgAm8gQZkS1C6gAAAABJRU5ErkJggg=='
-  );
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromPath(icon1x);
+  }
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromDataURL(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAAa/KRFAAAAGklEQVR42mNk+A8AAwAB/gD3qQAAAABJRU5ErkJggg=='
+    );
+  }
+
+  // Retina: set the image as template with correct DPI
+  if (fs.existsSync(icon2x)) {
+    icon = nativeImage.createFromPath(icon1x);
+    icon.addRepresentation({ scaleFactor: 2.0, dataURL: nativeImage.createFromPath(icon2x).toDataURL() });
+  }
+
+  icon.setTemplateImage(true); // makes it adapt to light/dark menu bar
+  tray = new Tray(icon);
   tray.setToolTip('JARVIS');
   tray.on('click', toggleWindow);
 }
@@ -234,6 +255,19 @@ ipcMain.handle('config-status', () => ({
   google:     gmail.isConfigured(),
 }));
 
+// ── IPC: Permissions (onboarding) ─────────────────────────────────────────
+ipcMain.handle('perm-check',            ()         => perms.getAllStatuses());
+ipcMain.handle('perm-request-mic',      ()         => perms.requestMicrophone());
+ipcMain.handle('perm-open-settings',    (_e, type) => { perms.openSettings(type); return { opened: type }; });
+ipcMain.handle('perm-complete',         ()         => {
+  perms.markSetupComplete();
+  onboardingWindow?.close();
+  onboardingWindow = null;
+  if (app.dock) app.dock.hide();
+  showWindow();
+  return { done: true };
+});
+
 // ── IPC: STT / TTS ────────────────────────────────────────────────────────
 ipcMain.handle('transcribe-audio', async (_e, buf, mime) => voice.transcribeAudio(Buffer.from(buf), mime||'audio/webm'));
 ipcMain.handle('speak', async (_e, text) => {
@@ -242,11 +276,42 @@ ipcMain.handle('speak', async (_e, text) => {
 });
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
+function createOnboardingWindow() {
+  const icnsPath = path.join(__dirname, 'assets', 'jarvis.icns');
+  onboardingWindow = new BrowserWindow({
+    width: 560, height: 680,
+    center: true, resizable: false,
+    frame: false, transparent: false,
+    titleBarStyle: 'hidden',
+    vibrancy: 'under-window',
+    icon: fs.existsSync(icnsPath) ? nativeImage.createFromPath(icnsPath) : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'onboarding', 'preload.js'),
+      contextIsolation: true, nodeIntegration: false,
+    },
+  });
+  if (app.dock) app.dock.show(); // show dock while onboarding is open
+  onboardingWindow.loadFile(path.join(__dirname, 'onboarding', 'index.html'));
+  onboardingWindow.on('closed', () => { onboardingWindow = null; if (app.dock) app.dock.hide(); });
+}
+
 app.whenReady().then(() => {
-  if (app.dock) app.dock.hide();
+  // Dock icon (shown when onboarding or dev tools are open)
+  const icnsPath = path.join(__dirname, 'assets', 'jarvis.icns');
+  if (app.dock && fs.existsSync(icnsPath)) {
+    app.dock.setIcon(nativeImage.createFromPath(icnsPath));
+  }
+
   createWindow();
   createTray();
   globalShortcut.register('CommandOrControl+Shift+J', toggleWindow);
+
+  // First launch → show onboarding; otherwise hide dock immediately
+  if (perms.isFirstLaunch()) {
+    createOnboardingWindow();
+  } else {
+    if (app.dock) app.dock.hide();
+  }
 
   // Proaktiver Modus — startet Cron-Jobs nach Window-Erstellung
   app.on('browser-window-created', () => {

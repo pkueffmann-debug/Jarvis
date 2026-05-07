@@ -10,175 +10,155 @@ function getClient() {
   return _client;
 }
 
-const SYSTEM_PROMPT = `Du bist JARVIS — ein intelligenter, proaktiver persönlicher Assistent, der auf dem Mac läuft. Du bist präzise, hilfreich und leicht witzig — wie ein echter Iron-Man-Assistent. Antworte kurz und klar, keine langen Texte außer wenn explizit gefragt.
+const SYSTEM_PROMPT = `Du bist JARVIS — ein mächtiger, proaktiver persönlicher Assistent der direkt auf dem Mac von ${process.env.JARVIS_OWNER_NAME || 'deinem Besitzer'} läuft. Du hast vollständigen Zugriff auf das System: Apps, Browser, Emails, Kalender, Dateien, Shell, Lautstärke, Screenshots, Bildschirmanalyse, Zwischenablage und mehr.
 
-Du hast Zugriff auf:
-- Gmail (Emails lesen, schreiben, suchen)
-- Google Calendar (Termine anzeigen, erstellen, löschen)
-- Dateisystem (Desktop, Downloads, Dokumente durchsuchen)
-- Gedächtnis (Fakten über den User speichern und abrufen)
-- System-Info (Zeit, Datum, RAM, CPU, Uptime)
-- Zwischenablage (lesen und schreiben)
-- macOS Notifications
+Sei präzise, hilfreich und leicht witzig — wie ein echter Iron-Man-Assistent. Antworte kurz und klar.
+Antworte IMMER auf Deutsch außer der User schreibt Englisch.
 
-Antworte IMMER auf Deutsch außer der User schreibt auf Englisch. Nutze Tools proaktiv wenn sie hilfreich wären.`;
+Wichtig:
+- Nutze Tools sofort und proaktiv, ohne erst zu fragen ob du darf
+- Bei Shell-Befehlen oder Aktionen die als gefährlich markiert werden: Claude NICHT selbst ausführen — der Nutzer wird im Chat um Bestätigung gebeten
+- Nach system_shutdown oder execute_shell mit gefährlichem Befehl: kurz erklären was du machen willst, Tool aufrufen, dann warten
+- analyze_screen: Nutze es wenn der User fragt was auf dem Bildschirm ist, Hilfe bei sichtbaren Inhalten braucht, oder Dokumente/Formulare analysiert haben will
+- Im Focus-Modus: Weise den User darauf hin wenn er ablenkende Apps öffnen will`;
+
+// ── Tool definitions ───────────────────────────────────────────────────────
 
 const TOOLS = [
-  // ── Gmail ─────────────────────────────────────────────────────────────────
-  {
-    name: 'get_emails',
-    description: 'Lädt Emails aus Gmail. Nutze bei allen Fragen über Emails/Nachrichten.',
-    input_schema: { type:'object', properties: {
-      query:      { type:'string', description:'Gmail-Query z.B. "from:thomas is:unread" oder "subject:Rechnung". Leer = Posteingang.' },
-      maxResults: { type:'number', description:'Anzahl (1–20, default 10)' },
-    }},
-  },
-  {
-    name: 'get_email_content',
-    description: 'Vollständigen Inhalt einer Email lesen (nutze die ID aus get_emails).',
-    input_schema: { type:'object', required:['emailId'], properties: {
-      emailId: { type:'string', description:'Email-ID aus get_emails' },
-    }},
-  },
-  {
-    name: 'send_email',
-    description: 'Email über Gmail senden.',
-    input_schema: { type:'object', required:['to','subject','body'], properties: {
-      to:      { type:'string', description:'Empfänger-Adresse' },
-      subject: { type:'string', description:'Betreff' },
-      body:    { type:'string', description:'Email-Text' },
-    }},
-  },
-  // ── Calendar ──────────────────────────────────────────────────────────────
-  {
-    name: 'get_calendar_events',
-    description: 'Google Calendar Termine abrufen. Nutze bei Fragen über Termine, Schedule, heute/diese Woche.',
-    input_schema: { type:'object', properties: {
-      query:     { type:'string', description:'Suchbegriff (optional)' },
-      maxResults:{ type:'number', description:'Anzahl (default 15)' },
-      daysAhead: { type:'number', description:'Wie viele Tage vorausschauen (default 7)' },
-    }},
-  },
-  {
-    name: 'create_calendar_event',
-    description: 'Neuen Termin in Google Calendar erstellen.',
-    input_schema: { type:'object', required:['title','startTime'], properties: {
-      title:       { type:'string', description:'Titel des Termins' },
-      startTime:   { type:'string', description:'Startzeit ISO 8601 oder natürliche Sprache' },
-      endTime:     { type:'string', description:'Endzeit (optional, default +1h)' },
-      location:    { type:'string', description:'Ort (optional)' },
-      description: { type:'string', description:'Beschreibung (optional)' },
-      attendees:   { type:'array',  items:{ type:'string' }, description:'Email-Adressen der Teilnehmer' },
-    }},
-  },
-  {
-    name: 'delete_calendar_event',
-    description: 'Termin aus Calendar löschen.',
-    input_schema: { type:'object', required:['eventId'], properties: {
-      eventId: { type:'string', description:'Event-ID aus get_calendar_events' },
-    }},
-  },
-  // ── Memory ────────────────────────────────────────────────────────────────
-  {
-    name: 'remember_fact',
-    description: 'Wichtige Information über den User dauerhaft merken (Präferenzen, Projekte, Personen, etc.).',
-    input_schema: { type:'object', required:['key','value'], properties: {
-      key:      { type:'string', description:'Eindeutiger Schlüssel z.B. "lieblingsrestaurant" oder "projekt_alpha_deadline"' },
-      value:    { type:'string', description:'Was gespeichert werden soll' },
-      category: { type:'string', description:'Kategorie: person | projekt | präferenz | general (default)' },
-    }},
-  },
-  {
-    name: 'recall_facts',
-    description: 'Gespeicherte Informationen abrufen. Nutze dies für "erinnerst du dich..." Fragen.',
-    input_schema: { type:'object', properties: {
-      query: { type:'string', description:'Suchbegriff (optional, leer = alle)' },
-    }},
-  },
-  {
-    name: 'forget_fact',
-    description: 'Eine gespeicherte Information löschen.',
-    input_schema: { type:'object', required:['key'], properties: {
-      key: { type:'string', description:'Schlüssel des zu löschenden Eintrags' },
-    }},
-  },
-  // ── Files ─────────────────────────────────────────────────────────────────
-  {
-    name: 'search_files',
-    description: 'Dateien auf Desktop, Downloads und Dokumente suchen.',
-    input_schema: { type:'object', required:['query'], properties: {
-      query:      { type:'string', description:'Dateiname oder Teil davon' },
-      maxResults: { type:'number', description:'Max Treffer (default 10)' },
-    }},
-  },
-  {
-    name: 'open_file',
-    description: 'Datei oder Ordner mit dem Standard-Programm öffnen.',
-    input_schema: { type:'object', required:['path'], properties: {
-      path: { type:'string', description:'Absoluter Pfad zur Datei' },
-    }},
-  },
-  // ── System ────────────────────────────────────────────────────────────────
-  {
-    name: 'get_system_info',
-    description: 'Aktuelle System-Infos: Zeit, Datum, RAM-Nutzung, CPU, Uptime.',
-    input_schema: { type:'object', properties: {} },
-  },
-  {
-    name: 'get_clipboard',
-    description: 'Aktuellen Inhalt der Zwischenablage lesen.',
-    input_schema: { type:'object', properties: {} },
-  },
-  {
-    name: 'set_clipboard',
-    description: 'Text in die Zwischenablage kopieren.',
-    input_schema: { type:'object', required:['text'], properties: {
-      text: { type:'string', description:'Text der in die Zwischenablage soll' },
-    }},
-  },
-  {
-    name: 'send_notification',
-    description: 'macOS-Benachrichtigung anzeigen (für Erinnerungen, Alerts, etc.).',
-    input_schema: { type:'object', required:['body'], properties: {
-      title: { type:'string', description:'Titel (default: JARVIS)' },
-      body:  { type:'string', description:'Nachrichtentext' },
-    }},
-  },
+  // Gmail
+  { name:'get_emails',         description:'Emails aus Gmail laden.',
+    input_schema:{ type:'object', properties:{ query:{type:'string'}, maxResults:{type:'number'} }} },
+  { name:'get_email_content',  description:'Vollständigen Email-Inhalt lesen (ID aus get_emails).',
+    input_schema:{ type:'object', required:['emailId'], properties:{ emailId:{type:'string'} }} },
+  { name:'send_email',         description:'Email senden.',
+    input_schema:{ type:'object', required:['to','subject','body'], properties:{ to:{type:'string'}, subject:{type:'string'}, body:{type:'string'} }} },
+
+  // Calendar
+  { name:'get_calendar_events',   description:'Kalender-Termine abrufen (nächste Tage).',
+    input_schema:{ type:'object', properties:{ query:{type:'string'}, maxResults:{type:'number'}, daysAhead:{type:'number'} }} },
+  { name:'create_calendar_event', description:'Neuen Termin erstellen.',
+    input_schema:{ type:'object', required:['title','startTime'], properties:{ title:{type:'string'}, startTime:{type:'string'}, endTime:{type:'string'}, location:{type:'string'}, description:{type:'string'}, attendees:{type:'array', items:{type:'string'}} }} },
+  { name:'delete_calendar_event', description:'Termin löschen.',
+    input_schema:{ type:'object', required:['eventId'], properties:{ eventId:{type:'string'} }} },
+
+  // Memory
+  { name:'remember_fact', description:'Wichtige Info dauerhaft speichern.',
+    input_schema:{ type:'object', required:['key','value'], properties:{ key:{type:'string'}, value:{type:'string'}, category:{type:'string'} }} },
+  { name:'recall_facts',  description:'Gespeicherte Infos abrufen.',
+    input_schema:{ type:'object', properties:{ query:{type:'string'} }} },
+  { name:'forget_fact',   description:'Gespeicherte Info löschen.',
+    input_schema:{ type:'object', required:['key'], properties:{ key:{type:'string'} }} },
+
+  // Files
+  { name:'search_files', description:'Dateien auf Desktop/Downloads/Dokumente suchen.',
+    input_schema:{ type:'object', required:['query'], properties:{ query:{type:'string'}, maxResults:{type:'number'} }} },
+  { name:'open_file',    description:'Datei/Ordner mit Standard-App öffnen.',
+    input_schema:{ type:'object', required:['path'], properties:{ path:{type:'string'} }} },
+
+  // System info
+  { name:'get_system_info',  description:'Zeit, Datum, RAM, CPU, Uptime.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'get_clipboard',    description:'Zwischenablage lesen.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'set_clipboard',    description:'Text in Zwischenablage kopieren.',
+    input_schema:{ type:'object', required:['text'], properties:{ text:{type:'string'} }} },
+  { name:'send_notification',description:'macOS-Benachrichtigung senden.',
+    input_schema:{ type:'object', required:['body'], properties:{ title:{type:'string'}, body:{type:'string'} }} },
+
+  // ── NEW: Apps & Windows ─────────────────────────────────────────────────
+  { name:'open_app', description:'App auf dem Mac öffnen. z.B. "Spotify", "Chrome", "VS Code", "Finder".',
+    input_schema:{ type:'object', required:['appName'], properties:{ appName:{type:'string', description:'Exakter App-Name wie er im Finder steht'} }} },
+  { name:'close_app', description:'Laufende App beenden.',
+    input_schema:{ type:'object', required:['appName'], properties:{ appName:{type:'string'} }} },
+  { name:'list_running_apps', description:'Alle aktuell geöffneten Apps auflisten.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'switch_to_app', description:'Zu einer offenen App wechseln (in den Vordergrund bringen).',
+    input_schema:{ type:'object', required:['appName'], properties:{ appName:{type:'string'} }} },
+
+  // ── NEW: Browser ────────────────────────────────────────────────────────
+  { name:'open_url', description:'URL im Standard-Browser öffnen.',
+    input_schema:{ type:'object', required:['url'], properties:{ url:{type:'string', description:'URL mit oder ohne https://'} }} },
+  { name:'google_search', description:'Google-Suche im Browser öffnen.',
+    input_schema:{ type:'object', required:['query'], properties:{ query:{type:'string'} }} },
+
+  // ── NEW: Messaging ──────────────────────────────────────────────────────
+  { name:'send_whatsapp', description:'WhatsApp öffnen mit vorgeschriebenem Text (und optionaler Nummer).',
+    input_schema:{ type:'object', required:['message'], properties:{ contact:{type:'string', description:'Telefonnummer oder Name'}, message:{type:'string'} }} },
+  { name:'facetime_call', description:'FaceTime-Anruf starten.',
+    input_schema:{ type:'object', required:['contact'], properties:{ contact:{type:'string', description:'Telefonnummer oder Apple-ID'} }} },
+
+  // ── NEW: System Controls ────────────────────────────────────────────────
+  { name:'set_volume', description:'Lautstärke setzen (0-100) oder "mute"/"unmute".',
+    input_schema:{ type:'object', required:['level'], properties:{ level:{} }} },
+  { name:'set_brightness', description:'Bildschirmhelligkeit setzen (0-100). Benötigt `brew install brightness`.',
+    input_schema:{ type:'object', required:['level'], properties:{ level:{type:'number'} }} },
+  { name:'take_screenshot', description:'Screenshot machen → wird auf dem Desktop gespeichert.',
+    input_schema:{ type:'object', properties:{ area:{type:'string', enum:['full','select'], description:'"full" = ganzer Bildschirm, "select" = interaktiv'} }} },
+  { name:'lock_screen', description:'Mac-Bildschirm sperren.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'system_sleep', description:'Mac in Schlafmodus versetzen.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'system_restart', description:'Mac neu starten. GEFÄHRLICH — erfordert Bestätigung.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'system_shutdown', description:'Mac herunterfahren. GEFÄHRLICH — erfordert Bestätigung.',
+    input_schema:{ type:'object', properties:{ minutes:{type:'number', description:'Verzögerung in Minuten (0 = sofort)'} }} },
+
+  // ── NEW: Shell ──────────────────────────────────────────────────────────
+  { name:'execute_shell', description:'Shell-Befehl auf dem Mac ausführen (zsh). Gefährliche Befehle (rm, sudo, kill) erfordern Bestätigung. Nützlich für Datei-Operationen, Infos, Automatisierung.',
+    input_schema:{ type:'object', required:['command'], properties:{ command:{type:'string', description:'Bash/Zsh-Befehl'} }} },
+
+  // ── Screen Awareness ────────────────────────────────────────────────────
+  { name:'analyze_screen', description:'Screenshot machen und mit Claude Vision analysieren. Nutze wenn User fragt was auf dem Bildschirm ist, ein Dokument/Formular/Vertrag analysiert werden soll, oder Hilfe bei sichtbaren Inhalten gebraucht wird.',
+    input_schema:{ type:'object', properties:{ question:{type:'string', description:'Spezifische Frage zum Bildschirminhalt (optional)'} }} },
+
+  // ── Clipboard Manager ────────────────────────────────────────────────────
+  { name:'get_clipboard_history', description:'Verlauf der zuletzt kopierten Texte (bis zu 50 Einträge).',
+    input_schema:{ type:'object', properties:{ n:{type:'number', description:'Anzahl der Einträge (default: 10)'} }} },
+  { name:'translate_clipboard', description:'Aktuellen Zwischenablage-Inhalt übersetzen und zurück in die Zwischenablage kopieren.',
+    input_schema:{ type:'object', required:['targetLanguage'], properties:{ targetLanguage:{type:'string', description:'Zielsprache, z.B. "Englisch", "Spanisch"'} }} },
+  { name:'improve_clipboard', description:'Text in der Zwischenablage verbessern/umschreiben und zurück kopieren.',
+    input_schema:{ type:'object', properties:{ instruction:{type:'string', description:'z.B. "formeller", "kürzer", "professionelle E-Mail"'} }} },
+
+  // ── Focus Mode ───────────────────────────────────────────────────────────
+  { name:'start_focus_mode', description:'Focus-Modus starten: Do Not Disturb aktivieren, Timer setzen.',
+    input_schema:{ type:'object', properties:{ durationMinutes:{type:'number', description:'Dauer in Minuten (default: 60)'}, blockedApps:{type:'array', items:{type:'string'}, description:'Apps die der User nicht öffnen soll'} }} },
+  { name:'end_focus_mode', description:'Focus-Modus beenden, Do Not Disturb deaktivieren.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'get_focus_status', description:'Aktuellen Focus-Modus Status abfragen.',
+    input_schema:{ type:'object', properties:{} } },
+
+  // ── Smart Notifications ──────────────────────────────────────────────────
+  { name:'get_notification_history', description:'Verlauf der JARVIS-Benachrichtigungen anzeigen.',
+    input_schema:{ type:'object', properties:{ query:{type:'string', description:'Optionaler Suchbegriff'}, hours:{type:'number', description:'Zeitraum in Stunden (default: 24)'} }} },
 ];
 
 const TOOL_LABELS = {
-  get_emails:           '📬 Gmail wird abgerufen…',
-  get_email_content:    '📖 Email wird gelesen…',
-  send_email:           '📤 Email wird gesendet…',
-  get_calendar_events:  '📅 Kalender wird geprüft…',
-  create_calendar_event:'📅 Termin wird erstellt…',
-  delete_calendar_event:'🗑 Termin wird gelöscht…',
-  remember_fact:        '🧠 Wird gespeichert…',
-  recall_facts:         '🧠 Gedächtnis wird durchsucht…',
-  forget_fact:          '🧠 Eintrag wird gelöscht…',
-  search_files:         '🔍 Dateien werden gesucht…',
-  open_file:            '📂 Datei wird geöffnet…',
-  get_system_info:      '💻 System-Info wird abgerufen…',
-  get_clipboard:        '📋 Zwischenablage wird gelesen…',
-  set_clipboard:        '📋 In Zwischenablage kopieren…',
-  send_notification:    '🔔 Benachrichtigung wird gesendet…',
+  get_emails:'📬 Gmail…', get_email_content:'📖 Email lesen…', send_email:'📤 Email senden…',
+  get_calendar_events:'📅 Kalender…', create_calendar_event:'📅 Termin erstellen…', delete_calendar_event:'🗑 Termin löschen…',
+  remember_fact:'🧠 Merken…', recall_facts:'🧠 Erinnern…', forget_fact:'🧠 Vergessen…',
+  search_files:'🔍 Dateien suchen…', open_file:'📂 Datei öffnen…',
+  get_system_info:'💻 System-Info…', get_clipboard:'📋 Clipboard…', set_clipboard:'📋 Kopieren…', send_notification:'🔔 Benachrichtigung…',
+  open_app:'🚀 App öffnen…', close_app:'✕ App schließen…', list_running_apps:'🔎 Apps auflisten…', switch_to_app:'⇄ App wechseln…',
+  open_url:'🌐 Browser…', google_search:'🔍 Suchen…',
+  send_whatsapp:'💬 WhatsApp…', facetime_call:'📞 FaceTime…',
+  set_volume:'🔊 Lautstärke…', set_brightness:'☀️ Helligkeit…', take_screenshot:'📸 Screenshot…',
+  lock_screen:'🔒 Sperren…', system_sleep:'💤 Schlaf…', system_restart:'🔄 Neustart…', system_shutdown:'⏻ Shutdown…',
+  execute_shell:'⚡ Shell…',
+  analyze_screen:'👁 Bildschirm analysieren…',
+  get_clipboard_history:'📋 Clipboard-Verlauf…', translate_clipboard:'🌍 Übersetzen…', improve_clipboard:'✍️ Text verbessern…',
+  start_focus_mode:'🎯 Focus-Modus starten…', end_focus_mode:'🎯 Focus beenden…', get_focus_status:'🎯 Focus-Status…',
+  get_notification_history:'🔔 Benachrichtigungen…',
 };
 
-/**
- * @param {Array}    history   - mutated in-place across turns
- * @param {string}   userMsg
- * @param {object}   cbs       - { onChunk, onToolStatus, onToolUse }
- * @returns {Promise<string>}  full response text
- */
 async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse } = {}) {
   const client   = getClient();
-  let messages   = [...history, { role: 'user', content: userMsg }];
+  let messages   = [...history, { role:'user', content: userMsg }];
   let fullText   = '';
   const hasTools = typeof onToolUse === 'function';
 
-  for (let loop = 0; loop < 8; loop++) {
+  for (let loop = 0; loop < 10; loop++) {
     const stream = client.messages.stream({
-      model:     'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-6',
       max_tokens: 2048,
       system: [{ type:'text', text: SYSTEM_PROMPT, cache_control:{ type:'ephemeral' } }],
       ...(hasTools ? { tools: TOOLS } : {}),
@@ -201,14 +181,11 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
         results.push({ type:'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
       }
     }
-
     messages = [...messages, { role:'assistant', content: final.content }, { role:'user', content: results }];
   }
 
-  // Persist to history
   history.push(...messages.slice(history.length));
   if (history.length > 40) history.splice(0, history.length - 40);
-
   return fullText;
 }
 

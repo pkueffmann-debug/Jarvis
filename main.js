@@ -1,22 +1,55 @@
 require('dotenv').config();
 
-const { app, BrowserWindow, Tray, globalShortcut, ipcMain, nativeImage, screen, shell, clipboard, Notification } = require('electron');
-const path     = require('path');
-const claude   = require('./services/claude');
-const voice    = require('./services/voice');
-const gmail    = require('./services/gmail');
-const calendar = require('./services/calendar');
-const memory   = require('./services/memory');
-const files    = require('./services/files');
-const system   = require('./services/system');
+const {
+  app, BrowserWindow, Tray, globalShortcut, ipcMain,
+  nativeImage, screen, shell, clipboard, Notification,
+} = require('electron');
+const path      = require('path');
+const claude    = require('./services/claude');
+const voice     = require('./services/voice');
+const gmail     = require('./services/gmail');
+const calendar  = require('./services/calendar');
+const memory    = require('./services/memory');
+const files     = require('./services/files');
+const sysInfo   = require('./services/system');
+const osCtrl    = require('./services/os-control');
+const screen_   = require('./services/screen');
+const clipHist  = require('./services/clipboard-history');
+const focus     = require('./services/focus');
+const proactive = require('./services/proactive');
+const notifs    = require('./services/notifications');
 
 let mainWindow = null;
 let tray       = null;
 const isDev    = process.env.NODE_ENV === 'development';
+const history  = memory.loadHistory();
 
-// Conversation history — persisted across sessions
-const history = memory.loadHistory();
 gmail.setOpenUrl((url) => shell.openExternal(url));
+
+// ── Clipboard monitor ──────────────────────────────────────────────────────
+setInterval(() => {
+  try { clipHist.update(clipboard.readText()); } catch {}
+}, 1000);
+
+// ── Confirmation gate ──────────────────────────────────────────────────────
+// For dangerous operations, we pause tool execution and ask the user in-chat.
+
+let _confirmResolve = null;
+let _confirmReject  = null;
+
+function requestConfirmation(message, detail) {
+  return new Promise((resolve, reject) => {
+    _confirmResolve = resolve;
+    _confirmReject  = reject;
+    mainWindow.webContents.send('jarvis-confirm', { message, detail });
+  });
+}
+
+ipcMain.on('confirm-action', (_e, confirmed) => {
+  if (confirmed)  _confirmResolve?.();
+  else            _confirmReject?.(new Error('Vom User abgebrochen.'));
+  _confirmResolve = _confirmReject = null;
+});
 
 // ── Window ─────────────────────────────────────────────────────────────────
 
@@ -25,9 +58,11 @@ function createWindow() {
     width: 380, height: 600,
     show: false, frame: false, resizable: false,
     transparent: true, alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false,
+    },
   });
-
   if (isDev) mainWindow.loadURL('http://localhost:5173');
   else       mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
 
@@ -66,32 +101,101 @@ function toggleWindow() { mainWindow.isVisible() ? mainWindow.hide() : showWindo
 // ── Tool executor ──────────────────────────────────────────────────────────
 
 async function toolExecutor(name, input) {
+  const g = gmail.isConfigured() && gmail.isAuthenticated();
+
   switch (name) {
     // Gmail
-    case 'get_emails':           return gmail.getEmails(input);
-    case 'get_email_content':    return gmail.getEmailContent(input);
-    case 'send_email':           return gmail.sendEmail(input);
+    case 'get_emails':            return g ? gmail.getEmails(input)         : noGoogle();
+    case 'get_email_content':     return g ? gmail.getEmailContent(input)    : noGoogle();
+    case 'send_email':            return g ? gmail.sendEmail(input)          : noGoogle();
     // Calendar
-    case 'get_calendar_events':  return calendar.getEvents(input);
-    case 'create_calendar_event':return calendar.createEvent(input);
-    case 'delete_calendar_event':return calendar.deleteEvent(input);
+    case 'get_calendar_events':   return g ? calendar.getEvents(input)       : noGoogle();
+    case 'create_calendar_event': return g ? calendar.createEvent(input)     : noGoogle();
+    case 'delete_calendar_event': return g ? calendar.deleteEvent(input)     : noGoogle();
     // Memory
-    case 'remember_fact':        return memory.rememberFact(input);
-    case 'recall_facts':         return memory.recallFacts(input);
-    case 'forget_fact':          return memory.forgetFact(input);
+    case 'remember_fact':         return memory.rememberFact(input);
+    case 'recall_facts':          return memory.recallFacts(input);
+    case 'forget_fact':           return memory.forgetFact(input);
     // Files
-    case 'search_files':         return files.searchFiles(input);
-    case 'open_file':            await shell.openPath(input.path); return { opened: input.path };
-    // System
-    case 'get_system_info':      return system.getSystemInfo();
-    case 'get_clipboard':        return { content: clipboard.readText() };
-    case 'set_clipboard':        clipboard.writeText(input.text); return { done: true };
-    case 'send_notification':
-      new Notification({ title: input.title || 'JARVIS', body: input.body }).show();
+    case 'search_files':          return files.searchFiles(input);
+    case 'open_file':             await shell.openPath(input.path); return { opened: input.path };
+    // Sys info
+    case 'get_system_info':       return sysInfo.getSystemInfo();
+    case 'get_clipboard':         return { content: clipboard.readText() };
+    case 'set_clipboard':         clipboard.writeText(input.text); return { done: true };
+    case 'send_notification': {
+      const title = input.title || 'JARVIS';
+      new Notification({ title, body: input.body }).show();
+      notifs.record(title, input.body);
       return { sent: true };
+    }
+    // ── OS Control ────────────────────────────────────────────────────────
+    case 'open_app':              return osCtrl.openApp(input);
+    case 'close_app':             return osCtrl.closeApp(input);
+    case 'list_running_apps':     return osCtrl.listRunningApps();
+    case 'switch_to_app':         return osCtrl.switchToApp(input);
+    case 'open_url':              return osCtrl.openUrl(input);
+    case 'google_search':         return osCtrl.googleSearch(input);
+    case 'send_whatsapp':         return osCtrl.sendWhatsApp(input);
+    case 'facetime_call':         return osCtrl.facetimeCall(input);
+    case 'set_volume':            return osCtrl.setVolume(input);
+    case 'set_brightness':        return osCtrl.setBrightness(input);
+    case 'take_screenshot':       return osCtrl.takeScreenshot(input);
+    case 'lock_screen':           return osCtrl.lockScreen();
+    case 'system_sleep':          return osCtrl.systemSleep();
+
+    // ── Screen Awareness ──────────────────────────────────────────────────
+    case 'analyze_screen':        return screen_.analyzeScreen(input.question);
+
+    // ── Clipboard Manager ─────────────────────────────────────────────────
+    case 'get_clipboard_history': return { history: clipHist.getHistory(input.n || 10) };
+    case 'translate_clipboard': {
+      const text = clipboard.readText();
+      if (!text) return { error: 'Zwischenablage ist leer.' };
+      return { original: text, targetLanguage: input.targetLanguage, note: 'JARVIS übersetzt jetzt direkt im Chat — kein extra Tool-Call nötig.' };
+    }
+    case 'improve_clipboard': {
+      const text = clipboard.readText();
+      if (!text) return { error: 'Zwischenablage ist leer.' };
+      return { original: text, instruction: input.instruction || 'verbessern', note: 'JARVIS verbessert den Text direkt im Chat.' };
+    }
+
+    // ── Focus Mode ────────────────────────────────────────────────────────
+    case 'start_focus_mode':      return focus.startFocus(input);
+    case 'end_focus_mode':        return focus.endFocus();
+    case 'get_focus_status':      return focus.getStatus();
+
+    // ── Smart Notifications ───────────────────────────────────────────────
+    case 'get_notification_history': return notifs.getHistory(input);
+
+    case 'system_restart': {
+      await requestConfirmation('Mac neu starten?', 'Alle ungespeicherten Daten gehen verloren.');
+      return osCtrl.systemRestart();
+    }
+    case 'system_shutdown': {
+      const mins = input.minutes || 0;
+      await requestConfirmation(
+        `Mac ${mins ? `in ${mins} Minuten` : 'jetzt'} herunterfahren?`,
+        'Alle ungespeicherten Daten gehen verloren.'
+      );
+      return osCtrl.systemShutdown(input);
+    }
+    case 'execute_shell': {
+      const risk = osCtrl.classifyCommand(input.command);
+      if (risk === 'dangerous' || risk === 'unknown') {
+        await requestConfirmation(
+          risk === 'dangerous' ? '⚠️ Gefährlicher Befehl' : 'Shell-Befehl ausführen?',
+          input.command
+        );
+      }
+      return osCtrl.executeShell(input);
+    }
+
     default: return { error: `Unbekanntes Tool: ${name}` };
   }
 }
+
+function noGoogle() { return { error: 'Google nicht verbunden. Bitte in den Einstellungen verbinden.' }; }
 
 // ── IPC: Chat ──────────────────────────────────────────────────────────────
 
@@ -99,14 +203,11 @@ ipcMain.on('close-window', () => mainWindow?.hide());
 
 ipcMain.on('send-message', async (_e, userMsg) => {
   try {
-    const googleConnected = gmail.isConfigured() && gmail.isAuthenticated();
-
     const fullText = await claude.streamChat(history, userMsg, {
       onChunk:      (c) => mainWindow.webContents.send('jarvis-chunk', c),
       onToolStatus: (s) => mainWindow.webContents.send('jarvis-tool-status', s),
-      onToolUse:    googleConnected ? toolExecutor : toolExecutorLimited,
+      onToolUse:    toolExecutor,
     });
-
     memory.saveHistory(history);
     mainWindow.webContents.send('jarvis-done', { fullText });
   } catch (err) {
@@ -115,60 +216,52 @@ ipcMain.on('send-message', async (_e, userMsg) => {
   }
 });
 
-// Tool executor without Google (memory, files, system still work)
-async function toolExecutorLimited(name, input) {
-  const googleTools = ['get_emails','get_email_content','send_email','get_calendar_events','create_calendar_event','delete_calendar_event'];
-  if (googleTools.includes(name)) return { error: 'Google nicht verbunden. Bitte in den Einstellungen verbinden.' };
-  return toolExecutor(name, input);
-}
-
-// ── IPC: Google Auth ───────────────────────────────────────────────────────
-
-ipcMain.handle('google-status', () => ({
-  configured:    gmail.isConfigured(),
-  authenticated: gmail.isAuthenticated(),
-}));
-
-ipcMain.handle('google-connect', async () => {
-  try   { await gmail.getAuth(); return { success: true }; }
-  catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('google-revoke', () => { gmail.revokeAuth(); return { success: true }; });
+// ── IPC: Google ────────────────────────────────────────────────────────────
+ipcMain.handle('google-status',  () => ({ configured: gmail.isConfigured(), authenticated: gmail.isAuthenticated() }));
+ipcMain.handle('google-connect', async () => { try { await gmail.getAuth(); return { success:true }; } catch(e) { return { success:false, error:e.message }; } });
+ipcMain.handle('google-revoke',  () => { gmail.revokeAuth(); return { success:true }; });
 
 // ── IPC: Memory ────────────────────────────────────────────────────────────
+ipcMain.handle('memory-stats',  () => memory.getStats());
+ipcMain.handle('memory-clear',  () => { memory.clearMemory(); return { done:true }; });
+ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 0; return { done:true }; });
 
-ipcMain.handle('memory-stats',   () => memory.getStats());
-ipcMain.handle('memory-clear',   () => { memory.clearMemory(); return { done: true }; });
-ipcMain.handle('history-clear',  () => { memory.clearHistory(); history.length = 0; return { done: true }; });
-
-// ── IPC: Config status (no keys exposed) ──────────────────────────────────
-
+// ── IPC: Config status ─────────────────────────────────────────────────────
 ipcMain.handle('config-status', () => ({
   anthropic:  !!process.env.ANTHROPIC_API_KEY,
   openai:     !!process.env.OPENAI_API_KEY,
-  elevenlabs: !!process.env.ELEVENLABS_API_KEY && !!process.env.ELEVENLABS_VOICE_ID,
+  elevenlabs: !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID),
   google:     gmail.isConfigured(),
 }));
 
 // ── IPC: STT / TTS ────────────────────────────────────────────────────────
-
-ipcMain.handle('transcribe-audio', async (_e, buf, mime) =>
-  voice.transcribeAudio(Buffer.from(buf), mime || 'audio/webm')
-);
-
+ipcMain.handle('transcribe-audio', async (_e, buf, mime) => voice.transcribeAudio(Buffer.from(buf), mime||'audio/webm'));
 ipcMain.handle('speak', async (_e, text) => {
-  try   { const b = await voice.textToSpeech(text); return b ? b.toString('base64') : null; }
-  catch (e) { console.error('[TTS]', e.message); return null; }
+  try { const b = await voice.textToSpeech(text); return b ? b.toString('base64') : null; }
+  catch(e) { console.error('[TTS]', e.message); return null; }
 });
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
-
 app.whenReady().then(() => {
   if (app.dock) app.dock.hide();
   createWindow();
   createTray();
   globalShortcut.register('CommandOrControl+Shift+J', toggleWindow);
+
+  // Proaktiver Modus — startet Cron-Jobs nach Window-Erstellung
+  app.on('browser-window-created', () => {
+    if (!proactive._initialized) {
+      proactive._initialized = true;
+      proactive.init({ mainWindow, gmail, calendar, notifyRecord: notifs.record });
+    }
+  });
+  // Fallback: direkt initialisieren sobald Fenster existiert
+  setTimeout(() => {
+    if (mainWindow && !proactive._initialized) {
+      proactive._initialized = true;
+      proactive.init({ mainWindow, gmail, calendar, notifyRecord: notifs.record });
+    }
+  }, 2000);
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());

@@ -86,7 +86,6 @@
     "cross-env": "^7.0.3",
     "electron": "^28.2.2",
     "electron-builder": "^26.8.1",
-    "electron-updater": "^6.8.3",
     "pngjs": "^7.0.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
@@ -95,6 +94,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "electron-updater": "^6.8.3",
     "@fontsource/inter": "^5.0.17",
     "canvas": "^3.2.3",
     "dotenv": "^16.4.1",

@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 // Creates a macOS DMG using hdiutil (built into macOS — no external tools needed)
 'use strict';
-const { execSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
-const os   = require('os');
 
-const ROOT    = path.join(__dirname, '..');
-const APP_DIR = path.join(ROOT, 'dist', 'mac');         // electron-builder --dir output
-const APP     = path.join(APP_DIR, 'JARVIS.app');
-const OUT_DIR = path.join(ROOT, 'dist');
-const VERSION = require(path.join(ROOT, 'package.json')).version;
-const DMG     = path.join(OUT_DIR, `JARVIS-${VERSION}.dmg`);
-const TMP_DMG = path.join(os.tmpdir(), `jarvis_tmp_${Date.now()}.dmg`);
-const VOLNAME = 'JARVIS';
+const ROOT     = path.join(__dirname, '..');
+const APP_DIR  = path.join(ROOT, 'dist', 'mac');
+const APP      = path.join(APP_DIR, 'JARVIS.app');
+const OUT_DIR  = path.join(ROOT, 'dist');
+const VERSION  = require(path.join(ROOT, 'package.json')).version;
+const DMG      = path.join(OUT_DIR, `JARVIS-${VERSION}.dmg`);
+const TMP_DMG  = path.join(OUT_DIR, `jarvis_tmp_${Date.now()}.dmg`);
+const VOLNAME  = 'JARVIS';
+// Use a safe build-time name that doesn't conflict with /Applications/JARVIS.app
+const BUILD_VOL = 'JARVIS_BUILD';
 
 if (!fs.existsSync(APP)) {
   console.error(`✗ App bundle not found: ${APP}`);
@@ -26,34 +27,46 @@ run();
 async function run() {
   console.log(`Building DMG for JARVIS ${VERSION}…\n`);
 
-  // 1. Create a writable DMG from the app bundle
-  console.log('1/4 Creating writable image…');
-  // Auto-size: let hdiutil calculate required space from source
+  // Determine size: app size + 20% headroom, minimum 600 MB
+  const appSizeMB = parseInt(exec(`du -sm "${APP}"`).split('\t')[0] || '537', 10);
+  const dmgSizeMB = Math.max(600, Math.ceil(appSizeMB * 1.2));
+
+  // 1. Create a blank writable DMG with a safe volume name (not "JARVIS" to avoid TCC conflicts)
+  console.log(`1/4 Creating writable image (${dmgSizeMB} MB)…`);
   exec(`hdiutil create \
-    -srcfolder "${APP}" \
-    -volname "${VOLNAME}" \
+    -megabytes ${dmgSizeMB} \
+    -volname "${BUILD_VOL}" \
     -fs HFS+ \
-    -format UDRW \
     "${TMP_DMG}"`);
 
   // 2. Mount it
-  console.log('2/4 Mounting…');
+  console.log('2/4 Mounting and copying app…');
   const attachOut = exec(`hdiutil attach -readwrite -noverify -noautoopen "${TMP_DMG}"`);
   const device = attachOut.split('\n').find(l => l.startsWith('/dev/'))?.split(/\s/)[0];
   if (!device) { fs.unlinkSync(TMP_DMG); throw new Error('Could not mount DMG'); }
 
-  const mountPath = `/Volumes/${VOLNAME}`;
+  const buildMountPath = `/Volumes/${BUILD_VOL}`;
 
   try {
-    // 3. Add Applications symlink
-    exec(`ln -sf /Applications "${mountPath}/Applications"`);
+    // Copy app bundle (ditto preserves all metadata and extended attributes)
+    const dittoResult = exec(`ditto "${APP}" "${buildMountPath}/JARVIS.app" 2>&1`);
+    if (dittoResult.includes('Operation not permitted') || dittoResult.includes('nicht zugelassen')) {
+      throw new Error(`ditto failed: ${dittoResult}`);
+    }
 
-    // Copy icon to volume for Finder
+    // Add Applications symlink
+    exec(`ln -sf /Applications "${buildMountPath}/Applications"`);
+
+    // Copy volume icon
     const icns = path.join(ROOT, 'assets', 'jarvis.icns');
     if (fs.existsSync(icns)) {
-      exec(`cp "${icns}" "${mountPath}/.VolumeIcon.icns" 2>/dev/null || true`);
-      exec(`SetFile -a C "${mountPath}" 2>/dev/null || true`); // enable custom icon
+      exec(`cp "${icns}" "${buildMountPath}/.VolumeIcon.icns" 2>/dev/null || true`);
+      exec(`SetFile -a C "${buildMountPath}" 2>/dev/null || true`);
     }
+
+    // Rename volume to final name (must happen AFTER copying the app)
+    exec(`diskutil rename "${BUILD_VOL}" "${VOLNAME}"`);
+    const mountPath = `/Volumes/${VOLNAME}`;
 
     // Set window layout via AppleScript
     exec(`osascript -e '
@@ -78,7 +91,7 @@ async function run() {
     ' 2>/dev/null || true`);
 
   } finally {
-    // Detach
+    // Detach whichever volume name is mounted
     exec(`hdiutil detach "${device}" -force`);
   }
 
@@ -97,7 +110,7 @@ function exec(cmd) {
   const result = spawnSync('sh', ['-c', cmd], { encoding: 'utf8' });
   if (result.status !== 0 && !cmd.includes('2>/dev/null')) {
     const err = (result.stderr || '').trim();
-    if (err) console.warn('  warn:', err.slice(0, 200));
+    if (err) console.warn('  warn:', err.slice(0, 300));
   }
   return (result.stdout || '').trim();
 }

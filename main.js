@@ -276,40 +276,55 @@ ipcMain.handle('speak', async (_e, text) => {
 });
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
+
+// PNG is more reliable than .icns for app.dock.setIcon() in dev mode
+const DOCK_ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
+const ICNS_PATH      = path.join(__dirname, 'assets', 'jarvis.icns');
+
+function setDockIcon() {
+  if (!app.dock) return;
+  const p = fs.existsSync(DOCK_ICON_PATH) ? DOCK_ICON_PATH : ICNS_PATH;
+  if (fs.existsSync(p)) {
+    app.dock.setIcon(nativeImage.createFromPath(p));
+  }
+}
+
 function createOnboardingWindow() {
-  const icnsPath = path.join(__dirname, 'assets', 'jarvis.icns');
   onboardingWindow = new BrowserWindow({
     width: 560, height: 680,
     center: true, resizable: false,
     frame: false, transparent: false,
     titleBarStyle: 'hidden',
     vibrancy: 'under-window',
-    icon: fs.existsSync(icnsPath) ? nativeImage.createFromPath(icnsPath) : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'onboarding', 'preload.js'),
       contextIsolation: true, nodeIntegration: false,
     },
   });
-  if (app.dock) app.dock.show(); // show dock while onboarding is open
+  // Set icon and show dock BEFORE loading the page so icon is visible immediately
+  setDockIcon();
+  if (app.dock) app.dock.show();
   onboardingWindow.loadFile(path.join(__dirname, 'onboarding', 'index.html'));
-  onboardingWindow.on('closed', () => { onboardingWindow = null; if (app.dock) app.dock.hide(); });
+  onboardingWindow.on('closed', () => {
+    onboardingWindow = null;
+    if (!isDev) app.dock?.hide();
+  });
 }
 
 app.whenReady().then(() => {
-  // Dock icon (shown when onboarding or dev tools are open)
-  const icnsPath = path.join(__dirname, 'assets', 'jarvis.icns');
-  if (app.dock && fs.existsSync(icnsPath)) {
-    app.dock.setIcon(nativeImage.createFromPath(icnsPath));
-  }
-
   createWindow();
   createTray();
   globalShortcut.register('CommandOrControl+Shift+J', toggleWindow);
 
-  // First launch → show onboarding; otherwise hide dock immediately
   if (perms.isFirstLaunch()) {
+    // First launch: show onboarding with dock visible
     createOnboardingWindow();
+  } else if (isDev) {
+    // Dev mode: keep dock visible so icon is testable
+    setDockIcon();
+    if (app.dock) app.dock.show();
   } else {
+    // Normal tray-only mode: hide dock
     if (app.dock) app.dock.hide();
   }
 

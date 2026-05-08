@@ -8,7 +8,44 @@
     "icon": "node scripts/generate-icon.js",
     "dev": "concurrently -n vite,electron -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "vite build",
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --mac --config",
+    "dist:dir": "npm run build && electron-builder --mac --dir"
+  },
+  "build": {
+    "appId": "com.jarvis.app",
+    "productName": "JARVIS",
+    "icon": "assets/jarvis.icns",
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "onboarding/**/*",
+      "services/**/*",
+      "scripts/generate-icon.js",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [{ "from": "assets/", "to": "assets/" }],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/jarvis.icns",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "JARVIS",
+      "icon": "assets/jarvis.icns",
+      "background": null,
+      "window": { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 150, "y": 180, "type": "file" },
+        { "x": 390, "y": 180, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "publish": [{ "provider": "github", "owner": "pkueffmann", "repo": "jarvis" }]
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",

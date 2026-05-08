@@ -9,8 +9,9 @@
     "dev": "concurrently -n vite,electron -c cyan,yellow \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "vite build",
     "start": "electron .",
-    "dist": "npm run build && electron-builder --mac --config",
-    "dist:dir": "npm run build && electron-builder --mac --dir"
+    "dist": "npm run dist:dir && node scripts/create-dmg.js",
+    "dist:dir": "npm run build && electron-builder --mac --dir --config",
+    "dmg": "node scripts/create-dmg.js"
   },
   "build": {
     "appId": "com.jarvis.app",
@@ -27,11 +28,24 @@
       "node_modules/**/*",
       "package.json"
     ],
-    "extraResources": [{ "from": "assets/", "to": "assets/" }],
+    "extraResources": [
+      {
+        "from": "assets/",
+        "to": "assets/"
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/jarvis.icns",
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "hardenedRuntime": false,
       "gatekeeperAssess": false
     },
@@ -39,13 +53,31 @@
       "title": "JARVIS",
       "icon": "assets/jarvis.icns",
       "background": null,
-      "window": { "width": 540, "height": 380 },
+      "window": {
+        "width": 540,
+        "height": 380
+      },
       "contents": [
-        { "x": 150, "y": 180, "type": "file" },
-        { "x": 390, "y": 180, "type": "link", "path": "/Applications" }
+        {
+          "x": 150,
+          "y": 180,
+          "type": "file"
+        },
+        {
+          "x": 390,
+          "y": 180,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
-    "publish": [{ "provider": "github", "owner": "pkueffmann", "repo": "jarvis" }]
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "pkueffmann",
+        "repo": "jarvis"
+      }
+    ]
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
@@ -53,6 +85,8 @@
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^28.2.2",
+    "electron-builder": "^26.8.1",
+    "electron-updater": "^6.8.3",
     "pngjs": "^7.0.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",

@@ -20,6 +20,7 @@ const focus     = require('./services/focus');
 const proactive = require('./services/proactive');
 const notifs    = require('./services/notifications');
 const perms     = require('./services/permissions');
+const updater   = require('./services/updater');
 
 let mainWindow      = null;
 let onboardingWindow = null;
@@ -247,6 +248,9 @@ ipcMain.handle('memory-stats',  () => memory.getStats());
 ipcMain.handle('memory-clear',  () => { memory.clearMemory(); return { done:true }; });
 ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 0; return { done:true }; });
 
+// ── IPC: Auto-Updater ─────────────────────────────────────────────────────
+ipcMain.handle('update-install', () => { updater.installNow(); return { ok: true }; });
+
 // ── IPC: Config status ─────────────────────────────────────────────────────
 ipcMain.handle('config-status', () => ({
   anthropic:  !!process.env.ANTHROPIC_API_KEY,
@@ -341,6 +345,8 @@ app.whenReady().then(() => {
       proactive._initialized = true;
       proactive.init({ mainWindow, gmail, calendar, notifyRecord: notifs.record });
     }
+    // Start auto-updater after app is fully ready
+    updater.init(mainWindow);
   }, 2000);
 });
 

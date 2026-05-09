@@ -9,6 +9,9 @@ function getClient() {
   }
   return _client;
 }
+function reinit() {
+  _client = null;
+}
 
 const SYSTEM_PROMPT = `Du bist JARVIS — ein mächtiger, proaktiver persönlicher Assistent der direkt auf dem Mac von ${process.env.JARVIS_OWNER_NAME || 'deinem Besitzer'} läuft. Du hast vollständigen Zugriff auf das System: Apps, Browser, Emails, Kalender, Dateien, Shell, Lautstärke, Screenshots, Bildschirmanalyse, Zwischenablage und mehr.
 
@@ -189,4 +192,4 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
   return fullText;
 }
 
-module.exports = { streamChat };
+module.exports = { streamChat, reinit };

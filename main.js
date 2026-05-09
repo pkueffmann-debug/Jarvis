@@ -6,8 +6,11 @@ const {
 } = require('electron');
 const path      = require('path');
 const fs        = require('fs');
-const claude    = require('./services/claude');
-const voice     = require('./services/voice');
+
+const configSvc  = require('./services/config');
+const claude     = require('./services/claude');
+const voice      = require('./services/voice');
+const wakeWord   = require('./services/wakeword');
 const gmail     = require('./services/gmail');
 const calendar  = require('./services/calendar');
 const memory    = require('./services/memory');
@@ -248,6 +251,26 @@ ipcMain.handle('memory-stats',  () => memory.getStats());
 ipcMain.handle('memory-clear',  () => { memory.clearMemory(); return { done:true }; });
 ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 0; return { done:true }; });
 
+// ── IPC: Wake Word ─────────────────────────────────────────────────────────
+
+ipcMain.handle('wake-word-start', () => {
+  const key = configSvc.get('PICOVOICE_ACCESS_KEY') || process.env.PICOVOICE_ACCESS_KEY;
+  if (!key) return { ok: false, error: 'PICOVOICE_ACCESS_KEY fehlt — bitte in Einstellungen eintragen.' };
+
+  const result = wakeWord.init(key, () => {
+    // Wake word "JARVIS" detected → show window + notify renderer
+    showWindow();
+    mainWindow?.webContents.send('wake-word-detected');
+  });
+  return result;
+});
+
+ipcMain.handle('wake-word-stop',   () => { wakeWord.stop(); return { ok: true }; });
+ipcMain.handle('wake-word-status', () => ({ active: wakeWord.isActive(), frameLength: wakeWord.frameLength(), sampleRate: wakeWord.sampleRate() }));
+
+// Audio frames arrive as plain arrays from the renderer (IPC serialises Int16Array → Array)
+ipcMain.on('wake-word-frame', (_e, samples) => wakeWord.processFrame(samples));
+
 // ── IPC: Auto-Updater ─────────────────────────────────────────────────────
 ipcMain.handle('update-install', () => { updater.installNow(); return { ok: true }; });
 
@@ -258,6 +281,17 @@ ipcMain.handle('config-status', () => ({
   elevenlabs: !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID),
   google:     gmail.isConfigured(),
 }));
+
+// ── IPC: Config get / set ──────────────────────────────────────────────────
+ipcMain.handle('config-get', (_e, key) => configSvc.get(key));
+ipcMain.handle('config-set', (_e, key, value) => {
+  configSvc.set(key, value);
+  // Re-init claude client so new key takes effect immediately
+  if (key === 'ANTHROPIC_API_KEY') {
+    try { claude.reinit(); } catch {}
+  }
+  return { ok: true };
+});
 
 // ── IPC: Permissions (onboarding) ─────────────────────────────────────────
 ipcMain.handle('perm-check',            ()         => perms.getAllStatuses());
@@ -316,6 +350,9 @@ function createOnboardingWindow() {
 }
 
 app.whenReady().then(() => {
+  // Load persisted API keys into process.env (must run after app is ready)
+  configSvc.applyToEnv();
+
   createWindow();
   createTray();
   globalShortcut.register('CommandOrControl+Shift+J', toggleWindow);
@@ -352,6 +389,10 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
-else app.on('second-instance', () => { if (mainWindow) showWindow(); });
+// In dev mode skip single-instance lock so `npm run dev` always works
+// even when a previous dev session left a ghost process behind.
+if (!isDev) {
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) app.quit();
+  else app.on('second-instance', () => { if (mainWindow) showWindow(); });
+}

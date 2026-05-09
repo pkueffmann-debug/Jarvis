@@ -17,11 +17,11 @@ function Row({ label, sub, right, onClick, danger }) {
       onClick={onClick}
       className={`flex items-center justify-between px-4 py-3 border-b last:border-0 border-white/5 ${onClick ? 'cursor-pointer hover:bg-white/5 transition-colors' : ''}`}
     >
-      <div>
+      <div className="min-w-0 flex-1">
         <p className={`text-sm ${danger ? 'text-red-400' : 'text-white'}`}>{label}</p>
         {sub && <p className="text-[11px] text-subtext mt-0.5">{sub}</p>}
       </div>
-      {right}
+      {right && <div className="ml-3 shrink-0">{right}</div>}
     </div>
   );
 }
@@ -38,7 +38,7 @@ function Toggle({ value, onChange }) {
 }
 
 function StatusDot({ ok }) {
-  return <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-success' : 'bg-white/25'}`} />;
+  return <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-success' : 'bg-red-400/70'}`} />;
 }
 
 function Chevron() {
@@ -49,18 +49,122 @@ function Chevron() {
   );
 }
 
-export default function Settings({ onClose, ttsOn, onToggleTTS }) {
+function ApiKeyRow({ label, sub, envKey, onSaved }) {
+  const [editing, setEditing]   = useState(false);
+  const [value,   setValue]     = useState('');
+  const [masked,  setMasked]    = useState('');
+  const [saving,  setSaving]    = useState(false);
+  const [saved,   setSaved]     = useState(false);
+
+  useEffect(() => {
+    if (!window.jarvis?.configGet) return;
+    window.jarvis.configGet(envKey).then(v => {
+      if (v) setMasked(v.slice(0, 8) + '••••••••' + v.slice(-4));
+      else   setMasked('');
+    });
+  }, [envKey]);
+
+  async function save() {
+    if (!value.trim()) return;
+    setSaving(true);
+    await window.jarvis.configSet(envKey, value.trim());
+    const v = value.trim();
+    setMasked(v.slice(0, 8) + '••••••••' + v.slice(-4));
+    setValue('');
+    setEditing(false);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    onSaved?.();
+  }
+
+  async function clear() {
+    await window.jarvis.configSet(envKey, '');
+    setMasked('');
+    setValue('');
+    setEditing(false);
+    onSaved?.();
+  }
+
+  return (
+    <div className="px-4 py-3 border-b last:border-0 border-white/5">
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <p className="text-sm text-white">{label}</p>
+          {sub && <p className="text-[11px] text-subtext mt-0.5">{sub}</p>}
+        </div>
+        <div className="flex items-center gap-2 ml-3">
+          {saved && <span className="text-[11px] text-success">Gespeichert ✓</span>}
+          <StatusDot ok={!!masked} />
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="mt-2 flex gap-2">
+          <input
+            autoFocus
+            type="text"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+            placeholder={`${envKey}=sk-...`}
+            className="flex-1 min-w-0 text-[12px] rounded-lg px-3 py-1.5 outline-none font-mono"
+            style={{ background:'#0A0A14', border:'1px solid rgba(99,102,241,0.35)', color:'#e2e8f0' }}
+          />
+          <button
+            onClick={save}
+            disabled={saving || !value.trim()}
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40 transition-opacity shrink-0"
+            style={{ background:'linear-gradient(135deg,#6366F1,#818CF8)', color:'#fff' }}
+          >
+            {saving ? '…' : 'OK'}
+          </button>
+          <button
+            onClick={() => { setEditing(false); setValue(''); }}
+            className="text-[11px] text-subtext px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+          >✕</button>
+        </div>
+      ) : (
+        <div className="mt-1.5 flex items-center gap-2">
+          <span className="text-[11px] text-subtext/70 font-mono flex-1 truncate">
+            {masked || 'nicht gesetzt'}
+          </span>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-[11px] text-accent/80 hover:text-accent transition-colors px-2 py-0.5 rounded hover:bg-accent/10 shrink-0"
+          >
+            {masked ? 'Ändern' : 'Eintragen'}
+          </button>
+          {masked && (
+            <button
+              onClick={clear}
+              className="text-[11px] text-red-400/60 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-500/10 shrink-0"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onToggleWakeWord }) {
   const [config,    setConfig]    = useState(null);
   const [google,    setGoogle]    = useState({ configured:false, authenticated:false });
   const [memStats,  setMemStats]  = useState({ factCount:0, historyCount:0 });
   const [connecting, setConnecting] = useState(false);
   const [clearing,   setClearing]   = useState('');
 
-  useEffect(() => {
+  function refreshStatus() {
     if (!window.jarvis) return;
     window.jarvis.configStatus().then(setConfig).catch(()=>{});
     window.jarvis.googleStatus().then(setGoogle).catch(()=>{});
-    window.jarvis.memoryStats().then(setMemStats).catch(()=>{});
+  }
+
+  useEffect(() => {
+    refreshStatus();
+    window.jarvis?.memoryStats().then(setMemStats).catch(()=>{});
   }, []);
 
   async function connectGoogle() {
@@ -107,8 +211,42 @@ export default function Settings({ onClose, ttsOn, onToggleTTS }) {
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
 
-        {/* API Status */}
-        <Section title="API-Verbindungen">
+        {/* API Keys */}
+        <Section title="API-Keys">
+          <ApiKeyRow
+            label="Anthropic (Claude)"
+            sub="KI-Brain — claude.ai/settings → API Keys"
+            envKey="ANTHROPIC_API_KEY"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="OpenAI Whisper"
+            sub="Spracherkennung — platform.openai.com/api-keys"
+            envKey="OPENAI_API_KEY"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="ElevenLabs"
+            sub="TTS — elevenlabs.io/app/settings/api-keys"
+            envKey="ELEVENLABS_API_KEY"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="ElevenLabs Voice ID"
+            sub="Voice ID aus dem ElevenLabs Dashboard"
+            envKey="ELEVENLABS_VOICE_ID"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="Picovoice (Wake Word)"
+            sub="console.picovoice.ai → kostenlosen AccessKey holen"
+            envKey="PICOVOICE_ACCESS_KEY"
+            onSaved={refreshStatus}
+          />
+        </Section>
+
+        {/* Status */}
+        <Section title="Verbindungsstatus">
           <Row label="Claude (Anthropic)" sub="KI-Brain" right={<StatusDot ok={config?.anthropic} />} />
           <Row label="OpenAI Whisper" sub="Spracherkennung" right={<StatusDot ok={config?.openai} />} />
           <Row label="ElevenLabs TTS" sub="Sprachausgabe" right={<StatusDot ok={config?.elevenlabs} />} />
@@ -117,7 +255,7 @@ export default function Settings({ onClose, ttsOn, onToggleTTS }) {
         {/* Google */}
         <Section title="Google (Gmail + Calendar)">
           {!google.configured ? (
-            <Row label="Nicht konfiguriert" sub="GOOGLE_CLIENT_ID fehlt in .env" right={null} />
+            <Row label="Nicht konfiguriert" sub="Google Client ID nicht gesetzt" right={null} />
           ) : google.authenticated ? (
             <Row label="Verbunden ✓" sub="Gmail & Calendar aktiv"
               right={<button onClick={revokeGoogle} className="text-[11px] text-red-400/80 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10">Trennen</button>}
@@ -136,8 +274,13 @@ export default function Settings({ onClose, ttsOn, onToggleTTS }) {
         </Section>
 
         {/* Voice */}
-        <Section title="Stimme">
+        <Section title="Stimme &amp; Wake Word">
           <Row label="Text-to-Speech" sub="JARVIS liest Antworten vor" right={<Toggle value={ttsOn} onChange={onToggleTTS} />} />
+          <Row
+            label="Wake Word — &quot;Hey JARVIS&quot;"
+            sub={wakeWordOn ? 'Hört auf dich · Picovoice AccessKey nötig' : 'Deaktiviert — AccessKey in API-Keys eintragen'}
+            right={<Toggle value={!!wakeWordOn} onChange={onToggleWakeWord} />}
+          />
         </Section>
 
         {/* Memory */}

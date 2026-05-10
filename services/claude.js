@@ -256,9 +256,55 @@ const TOOL_LABELS = {
   wikipedia_search:'📚 Wikipedia suchen…', wikipedia_summary:'📚 Wikipedia lesen…',
 };
 
+// Remove tool_result messages that have no matching tool_use in the previous message.
+// This prevents the "unexpected tool_use_id" API error after history trimming.
+function sanitizeMessages(msgs) {
+  const result = [];
+  for (const msg of msgs) {
+    if (
+      msg.role === 'user' &&
+      Array.isArray(msg.content) &&
+      msg.content.some(b => b.type === 'tool_result')
+    ) {
+      const prev = result[result.length - 1];
+      const prevHasToolUse =
+        prev?.role === 'assistant' &&
+        Array.isArray(prev.content) &&
+        prev.content.some(b => b.type === 'tool_use');
+      if (!prevHasToolUse) continue; // drop orphaned tool_result
+    }
+    result.push(msg);
+  }
+  return result;
+}
+
+// Trim history to maxLen by removing complete exchanges from the front.
+// An exchange ends at the first assistant message that contains no tool_use.
+function trimHistory(history, maxLen = 40) {
+  while (history.length > maxLen) {
+    // Find the end of the oldest complete exchange
+    let cutAt = 1;
+    for (let i = 0; i < history.length; i++) {
+      const msg = history[i];
+      if (msg.role === 'assistant') {
+        const hasToolUse =
+          Array.isArray(msg.content) &&
+          msg.content.some(b => b.type === 'tool_use');
+        cutAt = i + 1;
+        if (!hasToolUse) break; // exchange complete
+      }
+    }
+    history.splice(0, cutAt);
+    // Re-sanitize in case trimming exposed a new orphan
+    const cleaned = sanitizeMessages(history);
+    history.splice(0, history.length, ...cleaned);
+  }
+}
+
 async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse } = {}) {
   const client   = getClient();
-  let messages   = [...history, { role:'user', content: userMsg }];
+  // Sanitize history before use — guards against corrupt persisted state
+  let messages   = [...sanitizeMessages(history), { role:'user', content: userMsg }];
   let fullText   = '';
   const hasTools = typeof onToolUse === 'function';
 
@@ -293,8 +339,9 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
     messages = [...messages, { role:'assistant', content: final.content }, { role:'user', content: results }];
   }
 
+  // Sync new messages back to history
   history.push(...messages.slice(history.length));
-  if (history.length > 40) history.splice(0, history.length - 40);
+  trimHistory(history, 40);
   return fullText;
 }
 

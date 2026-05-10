@@ -40,6 +40,7 @@ const newsService = require('./services/news');
 const stocks     = require('./services/stocks');
 const crypto     = require('./services/crypto');
 const wikipedia  = require('./services/wikipedia');
+const icloudMail = require('./services/icloud-mail');
 
 let mainWindow      = null;
 let onboardingWindow = null;
@@ -98,6 +99,7 @@ function createWindow() {
 // ── Tray ───────────────────────────────────────────────────────────────────
 
 function createTray() {
+  if (tray) { tray.destroy(); tray = null; }
   // Use @2x icon for retina displays, fall back to 1x
   const icon2x = path.join(__dirname, 'assets', 'tray-icon@2x.png');
   const icon1x = path.join(__dirname, 'assets', 'tray-icon.png');
@@ -218,6 +220,11 @@ async function toolExecutor(name, input) {
     // ── iMessage ─────────────────────────────────────────────────────────
     case 'get_imessages':  return imessage.getMessages(input);
     case 'send_imessage':  return imessage.sendMessage(input);
+
+    // ── iCloud Mail ───────────────────────────────────────────────────────────
+    case 'read_icloud_mail':   return icloudMail.getEmails(input);
+    case 'get_icloud_mail':    return icloudMail.getEmailContent(input);
+    case 'send_icloud_mail':   return icloudMail.sendEmail(input);
 
     // ── Contacts ─────────────────────────────────────────────────────────
     case 'search_contacts': return contacts.searchContacts(input);
@@ -370,6 +377,7 @@ ipcMain.handle('config-status', () => ({
   google:     gmail.isConfigured(),
   notion:     notion.isConfigured(),
   obsidian:   obsidian.isConfigured(),
+  icloudMail: icloudMail.isConfigured(),
 }));
 
 // ── IPC: Config get / set ──────────────────────────────────────────────────

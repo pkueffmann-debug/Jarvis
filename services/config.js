@@ -37,6 +37,8 @@ function get(key) {
     ELEVENLABS_API_KEY:   process.env.ELEVENLABS_API_KEY,
     ELEVENLABS_VOICE_ID:  process.env.ELEVENLABS_VOICE_ID,
     PICOVOICE_ACCESS_KEY: process.env.PICOVOICE_ACCESS_KEY,
+    ICLOUD_EMAIL:         process.env.ICLOUD_EMAIL,
+    ICLOUD_APP_PASSWORD:  process.env.ICLOUD_APP_PASSWORD,
   };
   return envMap[key] || '';
 }

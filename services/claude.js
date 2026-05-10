@@ -144,6 +144,14 @@ const TOOLS = [
   { name:'send_imessage', description:'iMessage senden.',
     input_schema:{ type:'object', required:['to','message'], properties:{ to:{type:'string', description:'Telefonnummer oder Apple-ID'}, message:{type:'string'} }} },
 
+  // ── iCloud Mail ────────────────────────────────────────────────────────────
+  { name:'read_icloud_mail',  description:'iCloud Mail (Apple Mail) Emails lesen. Benötigt ICLOUD_EMAIL + ICLOUD_APP_PASSWORD.',
+    input_schema:{ type:'object', properties:{ folder:{type:'string', description:'Posteingang (default: INBOX)'}, limit:{type:'number'}, query:{type:'string', description:'Suchbegriff'} }} },
+  { name:'get_icloud_mail',   description:'iCloud Mail Inhalt einer Email lesen.',
+    input_schema:{ type:'object', required:['uid'], properties:{ uid:{type:'string'}, folder:{type:'string'} }} },
+  { name:'send_icloud_mail',  description:'Email über iCloud Mail senden.',
+    input_schema:{ type:'object', required:['to','subject','body'], properties:{ to:{type:'string'}, subject:{type:'string'}, body:{type:'string'} }} },
+
   // ── Contacts ─────────────────────────────────────────────────────────────
   { name:'search_contacts', description:'Mac-Kontakte suchen.',
     input_schema:{ type:'object', properties:{ query:{type:'string', description:'Name oder Stichwort'}, limit:{type:'number'} }} },
@@ -233,6 +241,8 @@ const TOOL_LABELS = {
   get_notification_history:'🔔 Benachrichtigungen…',
   // iMessage
   get_imessages:'💬 iMessages lesen…', send_imessage:'💬 iMessage senden…',
+  // iCloud Mail
+  read_icloud_mail:'📮 iCloud Mail…', get_icloud_mail:'📖 iCloud Mail lesen…', send_icloud_mail:'📤 iCloud Mail senden…',
   // Contacts
   search_contacts:'👤 Kontakte suchen…',
   // Notes

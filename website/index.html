@@ -24,7 +24,7 @@
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; position: relative; }
 
     /* NAVBAR */
     .navbar {
@@ -78,13 +78,20 @@
       align-items: center; justify-content: center;
       text-align: center; padding: 120px 24px 80px;
       position: relative; overflow: hidden;
+      cursor: pointer;
     }
     .hero::before {
       content: ''; position: absolute; top: -300px; left: 50%;
       transform: translateX(-50%); width: 900px; height: 900px;
-      background: radial-gradient(ellipse, rgba(99,102,241,0.12) 0%, transparent 65%);
-      pointer-events: none;
+      background: radial-gradient(ellipse, rgba(99,102,241,0.08) 0%, transparent 65%);
+      pointer-events: none; z-index: 1;
     }
+    #hero-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 0; display: block;
+    }
+    .hero > *:not(#hero-canvas) { position: relative; z-index: 2; }
     .hero-badge {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 6px 14px; border-radius: 100px;
@@ -383,10 +390,79 @@
     /* REVEAL */
     .rv { opacity: 0; transform: translateY(28px); }
 
+    /* FEATURES NETWORK */
+    #features-network {
+      position: relative; width: 900px; height: 600px;
+      margin: 0 auto; overflow: visible;
+    }
+    #network-svg {
+      position: absolute; inset: 0;
+      width: 900px; height: 600px;
+      pointer-events: none; overflow: visible;
+    }
+    .conn-line {
+      stroke: rgba(99,102,241,0.55); stroke-width: 1.5; fill: none;
+      stroke-dasharray: 250; stroke-dashoffset: 250;
+    }
+    .net-node { fill: #818CF8; opacity: 0; }
+    .net-card {
+      position: absolute; border-radius: 14px;
+      border: 1px solid rgba(99,102,241,0.2); background: var(--surface);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; gap: 5px; padding: 12px 8px;
+    }
+    #net-center {
+      width: 160px; height: 160px; top: 220px; left: 370px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(79,70,229,0.08));
+      border-color: rgba(99,102,241,0.45); z-index: 2; transform-origin: center center;
+    }
+    .net-outer { width: 110px; height: 110px; background: rgba(13,13,21,0.95); z-index: 1; }
+    #net-0 { top:  70px; left: 395px; }
+    #net-1 { top: 157px; left: 547px; }
+    #net-2 { top: 333px; left: 547px; }
+    #net-3 { top: 420px; left: 395px; }
+    #net-4 { top: 333px; left: 243px; }
+    #net-5 { top: 157px; left: 243px; }
+    .net-icon { font-size: 24px; line-height: 1; }
+    .net-label { font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: 0.04em; }
+    .net-sublabel { font-size: 10px; color: var(--text-3); }
+    .net-center-logo {
+      font-size: 14px; font-weight: 800; letter-spacing: 0.14em; color: var(--accent);
+    }
+    .net-center-sub { font-size: 10px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* JOURNEY LINE */
+    #journey-svg {
+      position: absolute; top: 0; left: 0;
+      width: 88px; pointer-events: none; z-index: 1; overflow: visible;
+    }
+    #journey-path {
+      stroke: #6366F1; stroke-width: 1.5; fill: none;
+      filter: url(#j-glow);
+    }
+    .j-dot {
+      fill: #818CF8; opacity: 0;
+      filter: url(#j-dot-glow);
+      transition: opacity 0.5s ease;
+    }
+    .j-dot.j-on { opacity: 1; }
+    .j-ring {
+      fill: none; stroke: rgba(129,140,248,0.5); stroke-width: 1.5;
+      opacity: 0; transform-box: fill-box; transform-origin: center;
+    }
+    .j-ring.j-on { animation: j-pulse 2s ease-out infinite; }
+    @keyframes j-pulse {
+      0%   { opacity: 0.7; transform: scale(1);   }
+      100% { opacity: 0;   transform: scale(3.2); }
+    }
+    @media(max-width: 1080px) { #journey-svg { display: none; } }
+
     /* RESPONSIVE */
     @media(max-width:1100px){ .testi-grid{ grid-template-columns:repeat(3,1fr); } }
     @media(max-width:1100px){ .pricing-grid{ grid-template-columns:repeat(2,1fr); } }
-    @media(max-width:900px){
+    @media(min-width:901px) { .features-grid { display: none; } }
+    @media(max-width:900px) {
+      #features-network { display: none; }
       .features-grid,.pricing-grid{ grid-template-columns:1fr; }
       .feat-card{ border-right:none !important; }
       .price-card.pop{ transform:none; }
@@ -428,8 +504,25 @@
   <a href="#" class="btn btn-primary" onclick="toggleNav()">Download for Mac — Free</a>
 </div>
 
+<!-- Journey Line — full-page scroll-drawn spine -->
+<svg id="journey-svg" width="88" height="100" aria-hidden="true">
+  <defs>
+    <filter id="j-glow" x="-150%" y="-5%" width="400%" height="110%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="j-dot-glow" x="-200%" y="-200%" width="500%" height="500%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <path id="journey-path" d=""/>
+  <g id="journey-dots"></g>
+</svg>
+
 <!-- HERO -->
 <section class="hero" id="home">
+  <canvas id="hero-canvas"></canvas>
   <div class="hero-badge" id="heroBadge">
     <div class="badge-dot"></div>
     Now available for macOS
@@ -482,6 +575,76 @@
   <p class="section-tag rv">Funktionen</p>
   <h2 class="section-title rv">Alles was du brauchst.<br>Direkt auf deinem Mac.</h2>
   <p class="section-sub rv">JARVIS verbindet sich mit deinen Apps, versteht deinen Screen und handelt in Echtzeit — ohne Cloud, ohne Wartezeit.</p>
+  <!-- Desktop: Network Hub -->
+  <div id="features-network">
+    <svg id="network-svg" viewBox="0 0 900 600">
+      <defs>
+        <filter id="lglow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="2.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="nglow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="4" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <!-- Lines: center (450,300) → each card's final resting position -->
+      <line class="conn-line" x1="450" y1="300" x2="450" y2="75"  filter="url(#lglow)"/>
+      <line class="conn-line" x1="450" y1="300" x2="645" y2="187" filter="url(#lglow)"/>
+      <line class="conn-line" x1="450" y1="300" x2="645" y2="413" filter="url(#lglow)"/>
+      <line class="conn-line" x1="450" y1="300" x2="450" y2="525" filter="url(#lglow)"/>
+      <line class="conn-line" x1="450" y1="300" x2="255" y2="413" filter="url(#lglow)"/>
+      <line class="conn-line" x1="450" y1="300" x2="255" y2="187" filter="url(#lglow)"/>
+      <!-- Endpoint glow dots -->
+      <circle class="net-node" cx="450" cy="75"  r="5" filter="url(#nglow)"/>
+      <circle class="net-node" cx="645" cy="187" r="5" filter="url(#nglow)"/>
+      <circle class="net-node" cx="645" cy="413" r="5" filter="url(#nglow)"/>
+      <circle class="net-node" cx="450" cy="525" r="5" filter="url(#nglow)"/>
+      <circle class="net-node" cx="255" cy="413" r="5" filter="url(#nglow)"/>
+      <circle class="net-node" cx="255" cy="187" r="5" filter="url(#nglow)"/>
+    </svg>
+
+    <!-- Center card: JARVIS Brain -->
+    <div id="net-center" class="net-card">
+      <div style="font-size:32px;line-height:1">🤖</div>
+      <div class="net-center-logo">JARVIS</div>
+      <div class="net-center-sub">AI Brain</div>
+    </div>
+
+    <!-- 6 outer integration cards (hexagonal, clockwise from top) -->
+    <div class="net-card net-outer" id="net-0">
+      <div class="net-icon">📬</div>
+      <div class="net-label">Gmail</div>
+      <div class="net-sublabel">Email</div>
+    </div>
+    <div class="net-card net-outer" id="net-1">
+      <div class="net-icon">📅</div>
+      <div class="net-label">Kalender</div>
+      <div class="net-sublabel">Events</div>
+    </div>
+    <div class="net-card net-outer" id="net-2">
+      <div class="net-icon">💬</div>
+      <div class="net-label">iMessage</div>
+      <div class="net-sublabel">Chat</div>
+    </div>
+    <div class="net-card net-outer" id="net-3">
+      <div class="net-icon">👁</div>
+      <div class="net-label">Screen</div>
+      <div class="net-sublabel">Vision</div>
+    </div>
+    <div class="net-card net-outer" id="net-4">
+      <div class="net-icon">🎙</div>
+      <div class="net-label">Voice</div>
+      <div class="net-sublabel">STT / TTS</div>
+    </div>
+    <div class="net-card net-outer" id="net-5">
+      <div class="net-icon">💻</div>
+      <div class="net-label">Mac Control</div>
+      <div class="net-sublabel">OS</div>
+    </div>
+  </div>
+
+  <!-- Mobile fallback grid -->
   <div class="features-grid rv">
     <div class="feat-card">
       <div class="feat-icon">
@@ -1104,6 +1267,158 @@ let exitShown = false;
 function showExit() { if (!exitShown) { exitShown = true; openM('exit'); } }
 setTimeout(showExit, 5000);
 document.addEventListener('mouseleave', e => { if (e.clientY < 5) showExit(); });
+
+// ── Journey Line ─────────────────────────────────────────────────────────────
+(function () {
+  const ns    = 'http://www.w3.org/2000/svg';
+  const svg   = document.getElementById('journey-svg');
+  const path  = document.getElementById('journey-path');
+  const dotsG = document.getElementById('journey-dots');
+  if (!svg) return;
+
+  // S-curve x-positions (within 88px wide SVG)
+  const Xc = 44, Xl = 16, Xr = 72;
+
+  // Section anchors where glowing dots appear
+  const DOT_SELS = ['.logos','#features','#demo','.compare-wrap','#pricing','.testi-wrap','#faq'];
+
+  let totalLen = 0;
+  let dots = [];   // [{ ring, dot, y }]
+
+  function build() {
+    const docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    svg.setAttribute('height', docH);
+
+    // Dot y-positions: section.top + small inset
+    const dotYs = DOT_SELS
+      .map(s => document.querySelector(s))
+      .filter(Boolean)
+      .map(el => el.getBoundingClientRect().top + window.scrollY + 72);
+
+    // Build sinuous cubic-bezier path top → bottom
+    const pts = [0, ...dotYs, docH];
+    let d = `M ${Xc} 0`;
+    for (let i = 1; i < pts.length; i++) {
+      const y0 = pts[i - 1], y1 = pts[i];
+      const cpA = i % 2 === 1 ? Xr : Xl;
+      const cpB = i % 2 === 1 ? Xl : Xr;
+      d += ` C ${cpA} ${y0 + (y1-y0)*0.38}, ${cpB} ${y0 + (y1-y0)*0.62}, ${Xc} ${y1}`;
+    }
+    path.setAttribute('d', d);
+
+    // Set stroke-dash for scroll animation
+    totalLen = path.getTotalLength();
+    path.style.strokeDasharray  = totalLen;
+    path.style.strokeDashoffset = totalLen;
+
+    // Rebuild dots
+    dotsG.innerHTML = '';
+    dots = [];
+    dotYs.forEach(y => {
+      const ring = document.createElementNS(ns, 'circle');
+      ring.setAttribute('cx', Xc); ring.setAttribute('cy', y);
+      ring.setAttribute('r', '6'); ring.setAttribute('class', 'j-ring');
+
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', Xc); dot.setAttribute('cy', y);
+      dot.setAttribute('r', '4'); dot.setAttribute('class', 'j-dot');
+
+      dotsG.appendChild(ring);
+      dotsG.appendChild(dot);
+      dots.push({ ring, dot, y });
+    });
+
+    draw();
+  }
+
+  function draw() {
+    const scrollY   = window.scrollY;
+    const maxScroll = document.body.scrollHeight - window.innerHeight;
+    const pct       = maxScroll > 0 ? Math.min(scrollY / maxScroll, 1) : 0;
+
+    path.style.strokeDashoffset = totalLen * (1 - pct);
+
+    // Activate dots when their section enters the lower 85% of viewport
+    const vis = scrollY + window.innerHeight * 0.85;
+    dots.forEach(({ ring, dot, y }) => {
+      const on = y <= vis;
+      dot.classList.toggle('j-on', on);
+      ring.classList.toggle('j-on', on);
+    });
+  }
+
+  window.addEventListener('scroll', draw, { passive: true });
+  window.addEventListener('resize', build);
+
+  if (document.readyState === 'complete') { build(); }
+  else { window.addEventListener('load', build); }
+})();
+
+// ── Features Network ─────────────────────────────────────────────────────────
+if (document.getElementById('features-network')) {
+  gsap.timeline({
+    scrollTrigger: {
+      trigger: '#features-network',
+      start: 'top 70%',
+      end: 'bottom 30%',
+      scrub: 1.2,
+    }
+  })
+  // Center card grows + glows
+  .to('#net-center', {
+    scale: 1.65,
+    boxShadow: '0 0 48px rgba(99,102,241,0.45), 0 0 96px rgba(99,102,241,0.15)',
+    borderColor: 'rgba(99,102,241,0.8)',
+    duration: 1, ease: 'none',
+  })
+  // Outer cards spread outward (each in its hexagonal direction)
+  .to('#net-0', { y: -50, duration: 1, ease: 'none' }, '<')
+  .to('#net-1', { x:  43, y: -25, duration: 1, ease: 'none' }, '<')
+  .to('#net-2', { x:  43, y:  25, duration: 1, ease: 'none' }, '<')
+  .to('#net-3', { y:  50, duration: 1, ease: 'none' }, '<')
+  .to('#net-4', { x: -43, y:  25, duration: 1, ease: 'none' }, '<')
+  .to('#net-5', { x: -43, y: -25, duration: 1, ease: 'none' }, '<')
+  // Lines draw in simultaneously
+  .to('.conn-line', { strokeDashoffset: 0, duration: 1, ease: 'none' }, '<')
+  // Endpoint dots fade in near the end
+  .to('.net-node', { opacity: 1, duration: 0.4, stagger: 0.06, ease: 'none' }, '<0.6');
+}
+
+// ── 3D Neon Tubes Hero ────────────────────────────────────────────────────────
+(async () => {
+  const canvas = document.getElementById('hero-canvas');
+  const colorSets = [
+    { colors: ['#6366F1','#818CF8','#4F46E5'], lights: ['#6366F1','#A78BFA','#7C3AED','#4338CA'] },
+    { colors: ['#A78BFA','#C4B5FD','#7C3AED'], lights: ['#8B5CF6','#DDD6FE','#6D28D9','#4C1D95'] },
+    { colors: ['#4F46E5','#312E81','#818CF8'], lights: ['#4338CA','#3730A3','#6366F1','#818CF8'] },
+    { colors: ['#7C3AED','#8B5CF6','#6366F1'], lights: ['#7C3AED','#A78BFA','#4F46E5','#818CF8'] },
+  ];
+  let colorIdx = 0;
+  let TubesCursor = null;
+  let app = null;
+
+  async function initTubes(set) {
+    if (!TubesCursor) {
+      const mod = await import('https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js');
+      TubesCursor = mod.default;
+    }
+    if (app && typeof app.destroy === 'function') app.destroy();
+    app = TubesCursor(canvas, {
+      tubes: {
+        colors: set.colors,
+        lights: { intensity: 200, colors: set.lights },
+      },
+    });
+  }
+
+  document.getElementById('home').addEventListener('click', (e) => {
+    if (e.target.closest('a, button')) return; // let buttons work normally
+    colorIdx = (colorIdx + 1) % colorSets.length;
+    initTubes(colorSets[colorIdx]);
+  });
+
+  initTubes(colorSets[0]);
+})();
 
 // ── Stripe Checkout ───────────────────────────────────────────────────────────
 async function startCheckout(plan) {

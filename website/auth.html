@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JARVIS — Konto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #000;
+      --surface: #0A0A0A;
+      --surface-2: #111;
+      --border: rgba(255,255,255,0.08);
+      --text: #fff;
+      --text-2: #A1A1AA;
+      --accent: #6366F1;
+      --accent-hover: #818CF8;
+      --radius: 12px;
+      --red: #f87171;
+      --green: #22C55E;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 40px 20px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); }
+
+    .logo {
+      font-size: 20px; font-weight: 700; letter-spacing: 0.1em;
+      margin-bottom: 40px; text-decoration: none; color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%; max-width: 400px;
+      padding: 36px 32px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .card-title { font-size: 22px; font-weight: 700; text-align: center; }
+    .card-subtitle { font-size: 14px; color: var(--text-2); text-align: center; margin-top: -12px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 13px; font-weight: 500; color: var(--text-2); }
+    .form-group input {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
+      color: var(--text); font-size: 14px; font-family: inherit;
+      transition: border-color 0.2s; width: 100%;
+    }
+    .form-group input:focus { outline: none; border-color: var(--accent); }
+
+    .btn {
+      width: 100%; padding: 12px;
+      background: var(--accent); border: none; border-radius: 8px;
+      color: #fff; font-size: 15px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      transition: background 0.2s;
+    }
+    .btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .divider { height: 1px; background: var(--border); }
+    .links { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .links a { font-size: 13px; color: var(--text-2); }
+    .links a:hover { color: var(--text); }
+
+    .msg {
+      font-size: 13px; text-align: center; padding: 10px 14px;
+      border-radius: 8px; display: none;
+    }
+    .msg.error { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+    .msg.success { background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+
+    /* View switching */
+    .view { display: none; flex-direction: column; gap: 16px; width: 100%; }
+    .view.active { display: flex; }
+  </style>
+</head>
+<body>
+  <a class="logo" href="/">JAR<span>VIS</span></a>
+
+  <div class="card">
+    <div id="view-login" class="view active">
+      <h1 class="card-title">Anmelden</h1>
+      <p class="card-subtitle">Mit deinem JARVIS-Konto anmelden</p>
+      <div class="msg" id="login-msg"></div>
+      <div class="form-group">
+        <label>E-Mail</label>
+        <input type="email" id="login-email" placeholder="du@beispiel.de" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Passwort</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn" id="login-btn">Anmelden</button>
+      <div class="divider"></div>
+      <div class="links">
+        <a href="#" onclick="showView('reset')">Passwort vergessen?</a>
+        <a href="#" onclick="showView('signup')">Noch kein Konto? Registrieren</a>
+      </div>
+    </div>
+
+    <div id="view-signup" class="view">
+      <h1 class="card-title">Registrieren</h1>
+      <p class="card-subtitle">Konto erstellen und Lizenz kaufen</p>
+      <div class="msg" id="signup-msg"></div>
+      <div class="form-group">
+        <label>E-Mail</label>
+        <input type="email" id="signup-email" placeholder="du@beispiel.de" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Passwort</label>
+        <input type="password" id="signup-password" placeholder="Min. 8 Zeichen" autocomplete="new-password">
+      </div>
+      <button class="btn" id="signup-btn">Konto erstellen</button>
+      <div class="divider"></div>
+      <div class="links">
+        <a href="#" onclick="showView('login')">Bereits registriert? Anmelden</a>
+      </div>
+    </div>
+
+    <div id="view-reset" class="view">
+      <h1 class="card-title">Passwort zurücksetzen</h1>
+      <p class="card-subtitle">Wir senden dir einen Link per E-Mail</p>
+      <div class="msg" id="reset-msg"></div>
+      <div class="form-group">
+        <label>E-Mail</label>
+        <input type="email" id="reset-email" placeholder="du@beispiel.de" autocomplete="email">
+      </div>
+      <button class="btn" id="reset-btn">Link senden</button>
+      <div class="divider"></div>
+      <div class="links">
+        <a href="#" onclick="showView('login')">← Zurück zur Anmeldung</a>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:24px; font-size:13px; color:#52525B;">
+    <a href="/">← Zurück zur Startseite</a>
+  </p>
+
+<script>
+// Replace with your actual Supabase project URL and anon key
+const SUPABASE_URL = 'https://REPLACE_WITH_YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'REPLACE_WITH_YOUR_ANON_KEY';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+}
+
+function showMsg(id, type, text) {
+  const el = document.getElementById(id);
+  el.className = 'msg ' + type;
+  el.textContent = text;
+  el.style.display = 'block';
+}
+
+function setLoading(btn, loading) {
+  btn.disabled = loading;
+  if (loading) btn.dataset.orig = btn.textContent;
+  btn.textContent = loading ? 'Bitte warten…' : btn.dataset.orig;
+}
+
+// LOGIN
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+
+  if (!email || !password) { showMsg('login-msg', 'error', 'Bitte alle Felder ausfüllen.'); return; }
+
+  setLoading(btn, true);
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  setLoading(btn, false);
+
+  if (error) {
+    showMsg('login-msg', 'error', error.message);
+  } else {
+    // Redirect to pricing with email pre-filled
+    window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
+  }
+});
+
+// SIGNUP
+document.getElementById('signup-btn').addEventListener('click', async () => {
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const btn = document.getElementById('signup-btn');
+
+  if (!email || !password) { showMsg('signup-msg', 'error', 'Bitte alle Felder ausfüllen.'); return; }
+  if (password.length < 8) { showMsg('signup-msg', 'error', 'Passwort muss mindestens 8 Zeichen haben.'); return; }
+
+  setLoading(btn, true);
+  const { data, error } = await sb.auth.signUp({ email, password });
+  setLoading(btn, false);
+
+  if (error) {
+    showMsg('signup-msg', 'error', error.message);
+  } else if (data.user && !data.session) {
+    showMsg('signup-msg', 'success', 'Bestätigungs-E-Mail gesendet. Bitte E-Mail bestätigen, dann anmelden.');
+  } else {
+    window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
+  }
+});
+
+// RESET
+document.getElementById('reset-btn').addEventListener('click', async () => {
+  const email = document.getElementById('reset-email').value.trim();
+  const btn = document.getElementById('reset-btn');
+
+  if (!email) { showMsg('reset-msg', 'error', 'Bitte E-Mail eingeben.'); return; }
+
+  setLoading(btn, true);
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/auth.html',
+  });
+  setLoading(btn, false);
+
+  if (error) {
+    showMsg('reset-msg', 'error', error.message);
+  } else {
+    showMsg('reset-msg', 'success', 'Link gesendet. Bitte E-Mail prüfen.');
+  }
+});
+
+// Handle Enter key
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const active = document.querySelector('.view.active');
+  const btn = active.querySelector('.btn');
+  if (btn) btn.click();
+});
+
+// If already logged in, redirect to pricing
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    const email = data.session.user.email;
+    window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
+  }
+});
+</script>
+</body>
+</html>

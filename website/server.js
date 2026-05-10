@@ -11,13 +11,13 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ── Price IDs — create in Stripe Dashboard → Products → Add product ──────────
-// Set these in .env: STRIPE_PRICE_PRO_MONTHLY, STRIPE_PRICE_PRO_YEARLY,
-//                    STRIPE_PRICE_TEAM_MONTHLY, STRIPE_PRICE_TEAM_YEARLY
 const PRICES = {
-  pro_monthly:  process.env.STRIPE_PRICE_PRO_MONTHLY,
-  pro_yearly:   process.env.STRIPE_PRICE_PRO_YEARLY,
-  team_monthly: process.env.STRIPE_PRICE_TEAM_MONTHLY,
-  team_yearly:  process.env.STRIPE_PRICE_TEAM_YEARLY,
+  pro_monthly:        process.env.STRIPE_PRICE_PRO_MONTHLY,
+  pro_yearly:         process.env.STRIPE_PRICE_PRO_YEARLY,
+  team_monthly:       process.env.STRIPE_PRICE_TEAM_MONTHLY,
+  team_yearly:        process.env.STRIPE_PRICE_TEAM_YEARLY,
+  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY,
+  enterprise_yearly:  process.env.STRIPE_PRICE_ENTERPRISE_YEARLY,
 };
 
 // ── Create checkout session ───────────────────────────────────────────────────

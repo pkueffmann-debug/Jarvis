@@ -233,7 +233,7 @@
     .pt-knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.25s; }
     .pt-switch.on .pt-knob { transform: translateX(20px); }
     .pt-badge { font-size: 11px; font-weight: 700; color: #22c55e; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); padding: 3px 9px; border-radius: 100px; }
-    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: stretch; }
     .price-card {
       background: var(--bg); border: 1px solid var(--border);
       border-radius: var(--radius-card); padding: 32px;
@@ -385,6 +385,7 @@
 
     /* RESPONSIVE */
     @media(max-width:1100px){ .testi-grid{ grid-template-columns:repeat(3,1fr); } }
+    @media(max-width:1100px){ .pricing-grid{ grid-template-columns:repeat(2,1fr); } }
     @media(max-width:900px){
       .features-grid,.pricing-grid{ grid-template-columns:1fr; }
       .feat-card{ border-right:none !important; }
@@ -617,7 +618,7 @@
         </tr>
         <tr>
           <td>Preis</td>
-          <td class="hi" style="color:var(--accent);font-weight:700;">29€/Mo</td>
+          <td class="hi" style="color:var(--accent);font-weight:700;">ab 49€/Mo</td>
           <td style="color:var(--text)">0€</td>
           <td>20$/Mo</td>
           <td>30$/Mo</td>
@@ -642,41 +643,43 @@
       <span class="pt-badge">2 Monate gratis</span>
     </div>
     <div class="pricing-grid rv">
+      <!-- Free -->
       <div class="price-card">
-        <p class="price-plan">Hobby</p>
+        <p class="price-plan">Free</p>
         <div class="price-amount"><sup>€</sup>0</div>
         <p class="price-period">für immer kostenlos</p>
-        <p class="price-desc">Perfekt zum Ausprobieren — kein Kreditkarte nötig.</p>
+        <p class="price-desc">Zum Ausprobieren — kein Kreditkarte nötig.</p>
         <div class="price-divider"></div>
         <ul class="price-features">
-          <li>100 Nachrichten pro Tag</li>
-          <li>1 Integration</li>
+          <li>50 Nachrichten pro Tag</li>
+          <li>Basis Chat</li>
           <li>Screen Awareness</li>
-          <li>Basis Voice Control</li>
           <li>Community Support</li>
         </ul>
         <a href="#" class="btn btn-ghost price-btn">Kostenlos starten</a>
       </div>
+      <!-- Pro -->
       <div class="price-card pop">
         <div class="pop-badge">Most Popular</div>
         <p class="price-plan">Pro</p>
-        <div class="price-amount"><sup>€</sup><span id="proNum">29</span></div>
+        <div class="price-amount"><sup>€</sup><span id="proNum">49</span></div>
         <p class="price-period" id="proP">pro Monat</p>
         <p class="price-desc">Für Power-User die das Maximum herausholen wollen.</p>
         <div class="price-divider"></div>
         <ul class="price-features">
           <li>Unlimited Nachrichten</li>
           <li>Alle Integrationen</li>
-          <li>Wake Word Aktivierung</li>
-          <li>Gmail &amp; Kalender Zugriff</li>
+          <li>Wake Word &amp; Voice</li>
+          <li>Gmail &amp; Kalender</li>
           <li>Lokales Gedächtnis</li>
           <li>Priority Support</li>
         </ul>
         <button class="btn btn-primary price-btn" id="btnPro" onclick="startCheckout('pro')">7 Tage gratis testen</button>
       </div>
+      <!-- Team -->
       <div class="price-card">
         <p class="price-plan">Team</p>
-        <div class="price-amount"><sup>€</sup><span id="teamNum">99</span></div>
+        <div class="price-amount"><sup>€</sup><span id="teamNum">199</span></div>
         <p class="price-period" id="teamP">pro Monat</p>
         <p class="price-desc">Für Teams die gemeinsam produktiver werden.</p>
         <div class="price-divider"></div>
@@ -686,9 +689,26 @@
           <li>Team-Gedächtnis</li>
           <li>Shared Integrationen</li>
           <li>Priority Support</li>
-          <li>Custom Onboarding</li>
+          <li>Custom Wake Word</li>
         </ul>
         <button class="btn btn-ghost price-btn" id="btnTeam" onclick="startCheckout('team')">7 Tage gratis testen</button>
+      </div>
+      <!-- Enterprise -->
+      <div class="price-card">
+        <p class="price-plan">Enterprise</p>
+        <div class="price-amount"><sup>€</sup><span id="entNum">499</span></div>
+        <p class="price-period" id="entP">pro Monat</p>
+        <p class="price-desc">Für Unternehmen mit maximalen Anforderungen.</p>
+        <div class="price-divider"></div>
+        <ul class="price-features">
+          <li>Unlimited User</li>
+          <li>On-Premise Option</li>
+          <li>SLA Garantie</li>
+          <li>Dedizierter Support</li>
+          <li>Custom Integrationen</li>
+          <li>Security Review</li>
+        </ul>
+        <button class="btn btn-ghost price-btn" id="btnEnterprise" onclick="startCheckout('enterprise')">7 Tage gratis testen</button>
       </div>
     </div>
     <div class="payment-methods rv">
@@ -1006,16 +1026,19 @@ function togglePrice() {
   document.getElementById('labY').classList.toggle('on', yearly);
   const pN = document.getElementById('proNum');
   const tN = document.getElementById('teamNum');
+  const eN = document.getElementById('entNum');
   if (yearly) {
-    pN.textContent = '24'; tN.textContent = '82';
-    document.getElementById('proP').textContent = 'pro Monat, jährlich';
+    pN.textContent = '41'; tN.textContent = '166'; eN.textContent = '415';
+    document.getElementById('proP').textContent  = 'pro Monat, jährlich';
     document.getElementById('teamP').textContent = 'pro Monat, jährlich';
+    document.getElementById('entP').textContent  = 'pro Monat, jährlich';
   } else {
-    pN.textContent = '29'; tN.textContent = '99';
-    document.getElementById('proP').textContent = 'pro Monat';
+    pN.textContent = '49'; tN.textContent = '199'; eN.textContent = '499';
+    document.getElementById('proP').textContent  = 'pro Monat';
     document.getElementById('teamP').textContent = 'pro Monat';
+    document.getElementById('entP').textContent  = 'pro Monat';
   }
-  gsap.fromTo([pN, tN], {scale:1.2}, {scale:1, duration:0.35, ease:'back.out(2)'});
+  gsap.fromTo([pN, tN, eN], {scale:1.2}, {scale:1, duration:0.35, ease:'back.out(2)'});
 }
 
 // FAQ
@@ -1084,7 +1107,8 @@ document.addEventListener('mouseleave', e => { if (e.clientY < 5) showExit(); })
 
 // ── Stripe Checkout ───────────────────────────────────────────────────────────
 async function startCheckout(plan) {
-  const btn = document.getElementById('btn' + plan.charAt(0).toUpperCase() + plan.slice(1));
+  const planCapitalized = plan === 'enterprise' ? 'Enterprise' : plan.charAt(0).toUpperCase() + plan.slice(1);
+  const btn = document.getElementById('btn' + planCapitalized);
   const origHTML = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<div class="btn-spinner"></div> Weiterleitung…';

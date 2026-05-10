@@ -181,7 +181,13 @@ async function toolExecutor(name, input) {
     case 'facetime_call':         return osCtrl.facetimeCall(input);
     case 'set_volume':            return osCtrl.setVolume(input);
     case 'set_brightness':        return osCtrl.setBrightness(input);
-    case 'take_screenshot':       return osCtrl.takeScreenshot(input);
+    case 'take_screenshot': {
+      mainWindow.hide();
+      await new Promise(r => setTimeout(r, 500));
+      const shot = await osCtrl.takeScreenshot(input);
+      mainWindow.show();
+      return shot;
+    }
     case 'lock_screen':           return osCtrl.lockScreen();
     case 'system_sleep':          return osCtrl.systemSleep();
 

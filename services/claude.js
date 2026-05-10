@@ -256,46 +256,59 @@ const TOOL_LABELS = {
   wikipedia_search:'📚 Wikipedia suchen…', wikipedia_summary:'📚 Wikipedia lesen…',
 };
 
-// Remove tool_result messages that have no matching tool_use in the previous message.
-// This prevents the "unexpected tool_use_id" API error after history trimming.
+// Forward-scan: every tool_use assistant message must be immediately followed by a
+// user message containing tool_results, and vice versa. Any broken pair is dropped.
 function sanitizeMessages(msgs) {
   const result = [];
-  for (const msg of msgs) {
-    if (
+  let i = 0;
+  while (i < msgs.length) {
+    const msg = msgs[i];
+    const isToolUse =
+      msg.role === 'assistant' &&
+      Array.isArray(msg.content) &&
+      msg.content.some(b => b.type === 'tool_use');
+
+    if (isToolUse) {
+      const next = msgs[i + 1];
+      const nextIsResult =
+        next?.role === 'user' &&
+        Array.isArray(next.content) &&
+        next.content.some(b => b.type === 'tool_result');
+      if (nextIsResult) {
+        result.push(msg, next);
+        i += 2;
+      } else {
+        i++; // orphaned tool_use — drop
+      }
+      continue;
+    }
+
+    // A tool_result reached here was not consumed by the tool_use branch → orphaned
+    const isToolResult =
       msg.role === 'user' &&
       Array.isArray(msg.content) &&
-      msg.content.some(b => b.type === 'tool_result')
-    ) {
-      const prev = result[result.length - 1];
-      const prevHasToolUse =
-        prev?.role === 'assistant' &&
-        Array.isArray(prev.content) &&
-        prev.content.some(b => b.type === 'tool_use');
-      if (!prevHasToolUse) continue; // drop orphaned tool_result
-    }
+      msg.content.some(b => b.type === 'tool_result');
+    if (isToolResult) { i++; continue; }
+
     result.push(msg);
+    i++;
   }
   return result;
 }
 
-// Trim history to maxLen by removing complete exchanges from the front.
-// An exchange ends at the first assistant message that contains no tool_use.
+// Trim stored history to maxLen by dropping the oldest complete exchange at a time.
 function trimHistory(history, maxLen = 40) {
   while (history.length > maxLen) {
-    // Find the end of the oldest complete exchange
     let cutAt = 1;
     for (let i = 0; i < history.length; i++) {
       const msg = history[i];
       if (msg.role === 'assistant') {
-        const hasToolUse =
-          Array.isArray(msg.content) &&
-          msg.content.some(b => b.type === 'tool_use');
+        const hasToolUse = Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool_use');
         cutAt = i + 1;
-        if (!hasToolUse) break; // exchange complete
+        if (!hasToolUse) break;
       }
     }
     history.splice(0, cutAt);
-    // Re-sanitize in case trimming exposed a new orphan
     const cleaned = sanitizeMessages(history);
     history.splice(0, history.length, ...cleaned);
   }
@@ -303,25 +316,39 @@ function trimHistory(history, maxLen = 40) {
 
 async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse } = {}) {
   const client   = getClient();
-  // Sanitize history before use — guards against corrupt persisted state
-  let messages   = [...sanitizeMessages(history), { role:'user', content: userMsg }];
-  let fullText   = '';
   const hasTools = typeof onToolUse === 'function';
+  let   fullText = '';
+
+  // Send at most the last 10 messages from history to keep the payload small and
+  // avoid stale/broken pairs that accumulate in long sessions.
+  let apiMessages = [
+    ...sanitizeMessages(history.slice(-10)),
+    { role: 'user', content: userMsg },
+  ];
+
+  // Track only the new messages added in this exchange so we can append them to history.
+  const newMessages = [{ role: 'user', content: userMsg }];
 
   for (let loop = 0; loop < 10; loop++) {
+    // Sanitize before every API call — absolute safety net.
+    // Run on the full array: the forward-scan correctly preserves intact tool_use/result pairs.
+    apiMessages = sanitizeMessages(apiMessages);
+
     const stream = client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
-      system: [{ type:'text', text: SYSTEM_PROMPT, cache_control:{ type:'ephemeral' } }],
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       ...(hasTools ? { tools: TOOLS } : {}),
-      messages,
+      messages: apiMessages,
     });
 
     stream.on('text', (t) => { onChunk?.(t); fullText += t; });
 
     const final = await stream.finalMessage();
+    const assistantMsg = { role: 'assistant', content: final.content };
+
     if (final.stop_reason !== 'tool_use') {
-      messages = [...messages, { role: 'assistant', content: final.content }];
+      newMessages.push(assistantMsg);
       break;
     }
 
@@ -331,16 +358,19 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
       onToolStatus?.(TOOL_LABELS[block.name] || `🔧 ${block.name}…`);
       try {
         const res = await onToolUse(block.name, block.input);
-        results.push({ type:'tool_result', tool_use_id: block.id, content: JSON.stringify(res) });
+        results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(res) });
       } catch (err) {
-        results.push({ type:'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
+        results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify({ error: err.message }), is_error: true });
       }
     }
-    messages = [...messages, { role:'assistant', content: final.content }, { role:'user', content: results }];
+
+    const resultMsg = { role: 'user', content: results };
+    apiMessages = [...apiMessages, assistantMsg, resultMsg];
+    newMessages.push(assistantMsg, resultMsg);
   }
 
-  // Sync new messages back to history
-  history.push(...messages.slice(history.length));
+  // Persist the new exchange to history and trim
+  history.push(...newMessages);
   trimHistory(history, 40);
   return fullText;
 }

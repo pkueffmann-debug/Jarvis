@@ -274,7 +274,10 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
     stream.on('text', (t) => { onChunk?.(t); fullText += t; });
 
     const final = await stream.finalMessage();
-    if (final.stop_reason !== 'tool_use') break;
+    if (final.stop_reason !== 'tool_use') {
+      messages = [...messages, { role: 'assistant', content: final.content }];
+      break;
+    }
 
     const results = [];
     for (const block of final.content) {

@@ -55,4 +55,15 @@ contextBridge.exposeInMainWorld('jarvis', {
   updateInstall: () => ipcRenderer.invoke('update-install'),
   onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_e,info) => cb(info)),
   onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_e,info) => cb(info)),
+
+  // License / Paywall
+  licenseStatus:   ()        => ipcRenderer.invoke('license-status'),
+  licenseActivate: (key)     => ipcRenderer.invoke('license-activate', key),
+  licenseCheckout: (plan)    => ipcRenderer.invoke('license-checkout', plan),
+  licenseRevoke:   ()        => ipcRenderer.invoke('license-revoke'),
+  onPaywall:       (cb)      => ipcRenderer.on('jarvis-paywall', (_e, s) => cb(s)),
+  offPaywall:      ()        => ipcRenderer.removeAllListeners('jarvis-paywall'),
+
+  // Open URL in default browser
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 });

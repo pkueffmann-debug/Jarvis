@@ -24,6 +24,7 @@ const proactive  = require('./services/proactive');
 const notifs     = require('./services/notifications');
 const perms      = require('./services/permissions');
 const updater    = require('./services/updater');
+const license    = require('./services/license');
 // New integrations
 const imessage   = require('./services/imessage');
 const contacts   = require('./services/contacts');
@@ -294,6 +295,11 @@ function noGoogle() { return { error: 'Google nicht verbunden. Bitte in den Eins
 ipcMain.on('close-window', () => mainWindow?.hide());
 
 ipcMain.on('send-message', async (_e, userMsg) => {
+  const gate = license.checkAndIncrement();
+  if (!gate.allowed) {
+    mainWindow.webContents.send('jarvis-paywall', gate.status);
+    return;
+  }
   try {
     const fullText = await claude.streamChat(history, userMsg, {
       onChunk:      (c) => mainWindow.webContents.send('jarvis-chunk', c),
@@ -307,6 +313,15 @@ ipcMain.on('send-message', async (_e, userMsg) => {
     mainWindow.webContents.send('jarvis-error', err.message);
   }
 });
+
+// ── IPC: Shell ────────────────────────────────────────────────────────────
+ipcMain.handle('open-external', (_e, url) => { shell.openExternal(url); return { ok: true }; });
+
+// ── IPC: License ──────────────────────────────────────────────────────────
+ipcMain.handle('license-status',   ()          => license.getStatus());
+ipcMain.handle('license-activate', (_e, key)   => license.activateLicense(key));
+ipcMain.handle('license-checkout', (_e, plan)  => license.createCheckoutUrl(plan));
+ipcMain.handle('license-revoke',   ()          => { license.revokeLicense(); return { done: true }; });
 
 // ── IPC: Google ────────────────────────────────────────────────────────────
 ipcMain.handle('google-status',  () => ({ configured: gmail.isConfigured(), authenticated: gmail.isAuthenticated() }));

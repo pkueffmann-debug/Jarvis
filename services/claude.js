@@ -187,8 +187,8 @@ const TOOLS = [
     input_schema:{ type:'object', required:['title','content'], properties:{ title:{type:'string'}, content:{type:'string'}, folder:{type:'string', description:'Unterordner (optional)'} }} },
 
   // ── Weather ──────────────────────────────────────────────────────────────
-  { name:'get_weather', description:'Aktuelles Wetter und Vorhersage abrufen (Open-Meteo, kostenlos).',
-    input_schema:{ type:'object', properties:{ location:{type:'string', description:'Stadt oder Ort (default: Berlin)'}, days:{type:'number', description:'Vorhersage-Tage 1-7 (default: 3)'} }} },
+  { name:'get_weather', description:'Aktuelles Wetter und Vorhersage abrufen — IMMER dieses Tool nutzen wenn nach Wetter gefragt wird, niemals den Browser öffnen. Erkennt Standort automatisch via IP wenn kein Ort angegeben.',
+    input_schema:{ type:'object', properties:{ location:{type:'string', description:'Stadt oder Ort — weglassen für automatische Standorterkennung via IP'}, days:{type:'number', description:'Vorhersage-Tage 1-7 (default: 1)'} }} },
 
   // ── Web Search ───────────────────────────────────────────────────────────
   { name:'web_search', description:'Im Web suchen via DuckDuckGo (kostenlos, kein API Key).',

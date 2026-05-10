@@ -1,3 +1,7 @@
+if (process.platform !== 'darwin') {
+  module.exports = { getSafariTabs: () => ({ error: 'Safari ist nur auf macOS verfügbar.' }), searchSafariHistory: () => ({ error: 'Safari ist nur auf macOS verfügbar.' }), openSafariUrl: () => ({ error: 'Safari ist nur auf macOS verfügbar.' }) };
+  return;
+}
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');

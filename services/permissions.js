@@ -4,6 +4,8 @@ const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
 
+const isDarwin = process.platform === 'darwin';
+
 const JARVIS_DIR  = path.join(os.homedir(), '.jarvis');
 const SETUP_FILE  = path.join(JARVIS_DIR, '.setup-complete');
 
@@ -16,8 +18,8 @@ function markSetupComplete() {
   fs.writeFileSync(SETUP_FILE, new Date().toISOString(), 'utf8');
 }
 
-// Run a quick AppleScript and infer permission status from the result
 function checkAppleScriptAccess(script) {
+  if (!isDarwin) return Promise.resolve('not-determined');
   return new Promise((resolve) => {
     exec(`osascript -e '${script}'`, { timeout: 5000 }, (err, _stdout, stderr) => {
       if (!err) return resolve('granted');
@@ -36,8 +38,8 @@ function checkAppleScriptAccess(script) {
   });
 }
 
-// Trigger AppleScript access — this causes macOS to show the permission dialog
 function triggerAppleScriptAccess(script) {
+  if (!isDarwin) return Promise.resolve({ triggered: false });
   return new Promise((resolve) => {
     exec(`osascript -e '${script}'`, { timeout: 8000 }, (err) => {
       resolve({ triggered: true, error: err?.message });
@@ -46,6 +48,9 @@ function triggerAppleScriptAccess(script) {
 }
 
 async function getAllStatuses() {
+  if (!isDarwin) {
+    return { microphone: 'granted', camera: 'granted', screenRecording: 'granted', accessibility: 'granted', contacts: 'not-determined', calendar: 'not-determined', reminders: 'not-determined' };
+  }
   const mic    = systemPreferences.getMediaAccessStatus('microphone');
   const camera = systemPreferences.getMediaAccessStatus('camera');
   const screen = systemPreferences.getMediaAccessStatus('screen');

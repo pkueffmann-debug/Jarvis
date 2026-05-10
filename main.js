@@ -121,7 +121,7 @@ function createTray() {
     icon.addRepresentation({ scaleFactor: 2.0, dataURL: nativeImage.createFromPath(icon2x).toDataURL() });
   }
 
-  icon.setTemplateImage(true); // makes it adapt to light/dark menu bar
+  if (process.platform === 'darwin') icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip('JARVIS');
   tray.on('click', toggleWindow);
@@ -132,7 +132,11 @@ function getWindowPosition() {
   const tb = tray.getBounds();
   const { workArea } = screen.getDisplayNearestPoint({ x:tb.x, y:tb.y });
   let x = Math.round(tb.x + tb.width/2 - ww/2);
-  let y = Math.round(tb.y + tb.height + 4);
+  // On Windows the tray is at the bottom; open window above the tray icon
+  const isWin = process.platform === 'win32';
+  let y = isWin
+    ? Math.round(tb.y - wh - 4)
+    : Math.round(tb.y + tb.height + 4);
   x = Math.max(workArea.x+8, Math.min(x, workArea.x+workArea.width-ww-8));
   y = Math.max(workArea.y+8, Math.min(y, workArea.y+workArea.height-wh-8));
   return { x, y };

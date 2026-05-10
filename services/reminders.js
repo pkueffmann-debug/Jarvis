@@ -1,3 +1,7 @@
+if (process.platform !== 'darwin') {
+  module.exports = { getReminders: () => ({ error: 'Reminders ist nur auf macOS verfügbar.' }), createReminder: () => ({ error: 'Reminders ist nur auf macOS verfügbar.' }), completeReminder: () => ({ error: 'Reminders ist nur auf macOS verfügbar.' }) };
+  return;
+}
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');

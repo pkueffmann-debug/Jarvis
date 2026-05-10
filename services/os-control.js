@@ -1,4 +1,3 @@
-// macOS system control — safe to require from main process only
 const { exec }  = require('child_process');
 const { promisify } = require('util');
 const { shell } = require('electron');
@@ -7,8 +6,10 @@ const os   = require('os');
 const path = require('path');
 
 const run = promisify(exec);
+const isDarwin  = process.platform === 'darwin';
+const isWindows = process.platform === 'win32';
 
-// Write AppleScript to temp file to avoid any escaping headaches
+// ── macOS AppleScript helper ───────────────────────────────────────────────
 async function osa(script) {
   const tmp = path.join(os.tmpdir(), `jarvis-${Date.now()}.applescript`);
   fs.writeFileSync(tmp, script, 'utf8');
@@ -20,26 +21,61 @@ async function osa(script) {
   }
 }
 
+// ── Windows PowerShell helper ──────────────────────────────────────────────
+async function ps(script) {
+  const { stdout } = await run(
+    `powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`,
+    { shell: true }
+  );
+  return stdout.trim();
+}
+
+function macOnly(name) {
+  return { error: `${name} ist nur auf macOS verfügbar.` };
+}
+
 // ── Apps & Windows ─────────────────────────────────────────────────────────
 
 async function openApp({ appName }) {
-  await run(`open -a "${appName.replace(/"/g, '\\"')}"`);
+  if (isDarwin) {
+    await run(`open -a "${appName.replace(/"/g, '\\"')}"`);
+  } else if (isWindows) {
+    await run(`start "" "${appName}"`, { shell: true });
+  }
   return { opened: appName };
 }
 
 async function closeApp({ appName }) {
-  await osa(`tell application "${appName}" to quit`);
+  if (isDarwin) {
+    await osa(`tell application "${appName}" to quit`);
+  } else if (isWindows) {
+    const exe = appName.endsWith('.exe') ? appName : `${appName}.exe`;
+    await run(`taskkill /IM "${exe}" /F`, { shell: true }).catch(() => {});
+  }
   return { closed: appName };
 }
 
 async function listRunningApps() {
-  const out = await osa(`tell application "System Events" to get name of every process whose background only is false`);
-  const apps = out.split(', ').map((s) => s.trim()).filter(Boolean).sort();
-  return { apps, count: apps.length };
+  if (isDarwin) {
+    const out = await osa(`tell application "System Events" to get name of every process whose background only is false`);
+    const apps = out.split(', ').map((s) => s.trim()).filter(Boolean).sort();
+    return { apps, count: apps.length };
+  } else if (isWindows) {
+    const { stdout } = await run('tasklist /FO CSV /NH', { shell: true });
+    const apps = stdout.split('\n')
+      .map(l => l.split(',')[0]?.replace(/"/g, '').replace(/\.exe$/i, '').trim())
+      .filter(Boolean).sort();
+    return { apps, count: apps.length };
+  }
+  return { apps: [], count: 0 };
 }
 
 async function switchToApp({ appName }) {
-  await osa(`tell application "${appName}" to activate`);
+  if (isDarwin) {
+    await osa(`tell application "${appName}" to activate`);
+  } else if (isWindows) {
+    await ps(`(New-Object -ComObject Shell.Application).MinimizeAll(); Start-Process "${appName}"`);
+  }
   return { activated: appName };
 }
 
@@ -60,8 +96,7 @@ async function googleSearch({ query }) {
 // ── Messaging ──────────────────────────────────────────────────────────────
 
 async function sendWhatsApp({ contact, message }) {
-  const text = encodeURIComponent(message || '');
-  // Strip non-digits for phone number, keep empty if it looks like a name
+  const text   = encodeURIComponent(message || '');
   const digits = (contact || '').replace(/\D/g, '');
   const url    = digits.length >= 6
     ? `https://wa.me/${digits}?text=${text}`
@@ -71,12 +106,13 @@ async function sendWhatsApp({ contact, message }) {
 }
 
 async function facetimeCall({ contact }) {
+  if (!isDarwin) return macOnly('FaceTime');
   await shell.openExternal(`facetime://${encodeURIComponent(contact)}`);
   return { calling: contact };
 }
 
 async function sendImessage({ contact, message }) {
-  // Opens Messages.app with prefilled message via AppleScript
+  if (!isDarwin) return macOnly('iMessage');
   await osa(`
     tell application "Messages"
       activate
@@ -92,34 +128,63 @@ async function sendImessage({ contact, message }) {
 // ── Volume ─────────────────────────────────────────────────────────────────
 
 async function setVolume({ level }) {
-  if (level === 'mute' || level === 0 || level === '0') {
-    await osa('set volume output muted true');
-    return { muted: true };
+  if (isDarwin) {
+    if (level === 'mute' || level === 0 || level === '0') {
+      await osa('set volume output muted true');
+      return { muted: true };
+    }
+    if (level === 'unmute' || level === 'max') {
+      await osa('set volume output muted false');
+      if (level === 'max') await osa('set volume output volume 100');
+      return { muted: false };
+    }
+    const vol = Math.max(0, Math.min(100, Number(level)));
+    await osa(`set volume output volume ${vol}`);
+    return { volume: vol };
+  } else if (isWindows) {
+    if (level === 'mute') {
+      await ps(`(New-Object -ComObject WScript.Shell).SendKeys([char]173)`);
+      return { muted: true };
+    }
+    const vol = Math.max(0, Math.min(100, Number(level)));
+    // Use nircmdc if available, else PowerShell VBScript COM
+    await run(
+      `powershell -c "$obj = New-Object -ComObject WScript.Shell; $v = ${vol}; ` +
+      `for($i=0;$i-lt50;$i++){$obj.SendKeys([char]174)}; ` +
+      `$steps=[Math]::Round($v/2); for($i=0;$i-lt$steps;$i++){$obj.SendKeys([char]175)}"`,
+      { shell: true }
+    ).catch(() => {});
+    return { volume: vol };
   }
-  if (level === 'unmute' || level === 'max') {
-    await osa('set volume output muted false');
-    if (level === 'max') await osa('set volume output volume 100');
-    return { muted: false };
-  }
-  const vol = Math.max(0, Math.min(100, Number(level)));
-  await osa(`set volume output volume ${vol}`);
-  return { volume: vol };
+  return { error: 'Volume control not supported on this platform.' };
 }
 
 // ── Brightness ─────────────────────────────────────────────────────────────
 
 async function setBrightness({ level }) {
-  // level: 0-100
-  try {
-    await run(`brightness ${Math.max(0, Math.min(100, Number(level))) / 100}`);
-    return { brightness: level + '%' };
-  } catch {
-    return {
-      note: '`brightness` CLI nicht gefunden.',
-      hint: 'Installiere via: brew install brightness',
-      workaround: 'Nutze Fn+F1 / Fn+F2 am MacBook oder System Preferences → Displays.',
-    };
+  const pct = Math.max(0, Math.min(100, Number(level)));
+  if (isDarwin) {
+    try {
+      await run(`brightness ${pct / 100}`);
+      return { brightness: level + '%' };
+    } catch {
+      return {
+        note: '`brightness` CLI nicht gefunden.',
+        hint: 'Installiere via: brew install brightness',
+        workaround: 'Nutze Fn+F1 / Fn+F2 am MacBook.',
+      };
+    }
+  } else if (isWindows) {
+    try {
+      await ps(
+        `(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${pct})`
+      );
+      return { brightness: level + '%' };
+    } catch {
+      return { note: 'WMI brightness control fehlgeschlagen. Nutze Fn-Tasten.' };
+    }
   }
+  return { error: 'Brightness control not supported.' };
 }
 
 // ── Screenshot ─────────────────────────────────────────────────────────────
@@ -127,41 +192,68 @@ async function setBrightness({ level }) {
 async function takeScreenshot({ area = 'full' } = {}) {
   const name = `JARVIS-${new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')}.png`;
   const dest = path.join(os.homedir(), 'Desktop', name);
-  // -x = no sound, -i = interactive selection if area='select'
-  const flags = area === 'select' ? '-xi' : '-x';
-  await run(`screencapture ${flags} "${dest}"`);
+  if (isDarwin) {
+    const flags = area === 'select' ? '-xi' : '-x';
+    await run(`screencapture ${flags} "${dest}"`);
+  } else if (isWindows) {
+    await ps(
+      `Add-Type -AssemblyName System.Windows.Forms; ` +
+      `$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; ` +
+      `$bmp=New-Object System.Drawing.Bitmap($b.Width,$b.Height); ` +
+      `$g=[System.Drawing.Graphics]::FromImage($bmp); ` +
+      `$g.CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size); ` +
+      `$bmp.Save('${dest.replace(/\\/g, '\\\\')}'); $g.Dispose(); $bmp.Dispose()`
+    );
+  }
   return { saved: dest, filename: name };
 }
 
 // ── Screen lock ────────────────────────────────────────────────────────────
 
 async function lockScreen() {
-  try {
-    await run('"/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession" -suspend');
-  } catch {
-    await osa('tell application "System Events" to keystroke "q" using {command down, control down}');
+  if (isDarwin) {
+    try {
+      await run('"/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession" -suspend');
+    } catch {
+      await osa('tell application "System Events" to keystroke "q" using {command down, control down}');
+    }
+  } else if (isWindows) {
+    await run('rundll32.exe user32.dll,LockWorkStation', { shell: true });
   }
   return { locked: true };
 }
 
-// ── Shutdown / Restart / Sleep — DANGEROUS ─────────────────────────────────
+// ── Shutdown / Restart / Sleep ─────────────────────────────────────────────
 
 async function systemShutdown({ minutes = 0 }) {
-  if (minutes > 0) {
-    await run(`sudo shutdown -h +${minutes}`);
-    return { scheduled: `Shutdown in ${minutes} Min.` };
+  if (isDarwin) {
+    if (minutes > 0) {
+      await run(`sudo shutdown -h +${minutes}`);
+      return { scheduled: `Shutdown in ${minutes} Min.` };
+    }
+    await osa('tell application "System Events" to shut down');
+  } else if (isWindows) {
+    const secs = minutes > 0 ? minutes * 60 : 0;
+    await run(`shutdown /s /t ${secs}`, { shell: true });
   }
-  await osa('tell application "System Events" to shut down');
   return { initiated: 'shutdown' };
 }
 
 async function systemRestart() {
-  await osa('tell application "System Events" to restart');
+  if (isDarwin) {
+    await osa('tell application "System Events" to restart');
+  } else if (isWindows) {
+    await run('shutdown /r /t 0', { shell: true });
+  }
   return { initiated: 'restart' };
 }
 
 async function systemSleep() {
-  await osa('tell application "System Events" to sleep');
+  if (isDarwin) {
+    await osa('tell application "System Events" to sleep');
+  } else if (isWindows) {
+    await run('rundll32.exe powrprof.dll,SetSuspendState 0,1,0', { shell: true });
+  }
   return { initiated: 'sleep' };
 }
 
@@ -174,6 +266,7 @@ const SAFE_RE = [
   /^uname/,/^hostname$/,/^mkdir\s/,/^touch\s/,/^open\s/,
   /^which\s/,/^type\s/,/^env$/,/^printenv/,/^history/,
   /^diskutil\s+list/,/^system_profiler\s/,/^sw_vers/,
+  /^dir(\s|$)/,/^ver$/,/^ipconfig/,/^tasklist/,/^systeminfo/,
 ];
 
 const DANGER_RE = [
@@ -184,6 +277,7 @@ const DANGER_RE = [
   />\s*\/dev\//, /\bchmod\s+[0-7]*7[0-7]*/,
   /\bkillall\b/i, /\bkill\s+-9\b/i,
   /\bmv\s+.*\s+\//, /\bcp\s+.*\s+\//,
+  /del\s+\/[fFsS]/i, /rd\s+\/s/i, /rmdir\s+\/s/i,
 ];
 
 function classifyCommand(cmd) {
@@ -193,10 +287,13 @@ function classifyCommand(cmd) {
 }
 
 async function executeShell({ command }) {
+  const shellOpt = isWindows
+    ? { shell: 'cmd.exe' }
+    : { shell: '/bin/zsh' };
   const { stdout, stderr } = await run(command, {
     timeout: 20_000,
     maxBuffer: 512 * 1024,
-    shell: '/bin/zsh',
+    ...shellOpt,
   });
   return {
     output: (stdout || '').trim().slice(0, 3000) || '(kein Output)',

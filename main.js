@@ -378,9 +378,13 @@ ipcMain.handle('config-set', (_e, key, value) => {
 });
 
 // ── IPC: Permissions (onboarding) ─────────────────────────────────────────
-ipcMain.handle('perm-check',            ()         => perms.getAllStatuses());
-ipcMain.handle('perm-request-mic',      ()         => perms.requestMicrophone());
-ipcMain.handle('perm-open-settings',    (_e, type) => { perms.openSettings(type); return { opened: type }; });
+ipcMain.handle('perm-check',              ()         => perms.getAllStatuses());
+ipcMain.handle('perm-request-mic',        ()         => perms.requestMicrophone());
+ipcMain.handle('perm-request-camera',     ()         => perms.requestCamera());
+ipcMain.handle('perm-request-contacts',   ()         => perms.requestContacts());
+ipcMain.handle('perm-request-calendar',   ()         => perms.requestCalendar());
+ipcMain.handle('perm-request-reminders',  ()         => perms.requestReminders());
+ipcMain.handle('perm-open-settings',      (_e, type) => { perms.openSettings(type); return { opened: type }; });
 ipcMain.handle('perm-complete',         ()         => {
   perms.markSetupComplete();
   onboardingWindow?.close();

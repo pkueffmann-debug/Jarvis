@@ -11,19 +11,34 @@ const configSvc  = require('./services/config');
 const claude     = require('./services/claude');
 const voice      = require('./services/voice');
 const wakeWord   = require('./services/wakeword');
-const gmail     = require('./services/gmail');
-const calendar  = require('./services/calendar');
-const memory    = require('./services/memory');
-const files     = require('./services/files');
-const sysInfo   = require('./services/system');
-const osCtrl    = require('./services/os-control');
-const screen_   = require('./services/screen');
-const clipHist  = require('./services/clipboard-history');
-const focus     = require('./services/focus');
-const proactive = require('./services/proactive');
-const notifs    = require('./services/notifications');
-const perms     = require('./services/permissions');
-const updater   = require('./services/updater');
+const gmail      = require('./services/gmail');
+const calendar   = require('./services/calendar');
+const memory     = require('./services/memory');
+const files      = require('./services/files');
+const sysInfo    = require('./services/system');
+const osCtrl     = require('./services/os-control');
+const screen_    = require('./services/screen');
+const clipHist   = require('./services/clipboard-history');
+const focus      = require('./services/focus');
+const proactive  = require('./services/proactive');
+const notifs     = require('./services/notifications');
+const perms      = require('./services/permissions');
+const updater    = require('./services/updater');
+// New integrations
+const imessage   = require('./services/imessage');
+const contacts   = require('./services/contacts');
+const notes      = require('./services/notes');
+const reminders  = require('./services/reminders');
+const photos     = require('./services/photos');
+const safari     = require('./services/safari');
+const notion     = require('./services/notion');
+const obsidian   = require('./services/obsidian');
+const weather    = require('./services/weather');
+const search     = require('./services/search');
+const newsService = require('./services/news');
+const stocks     = require('./services/stocks');
+const crypto     = require('./services/crypto');
+const wikipedia  = require('./services/wikipedia');
 
 let mainWindow      = null;
 let onboardingWindow = null;
@@ -193,6 +208,58 @@ async function toolExecutor(name, input) {
     // ── Smart Notifications ───────────────────────────────────────────────
     case 'get_notification_history': return notifs.getHistory(input);
 
+    // ── iMessage ─────────────────────────────────────────────────────────
+    case 'get_imessages':  return imessage.getMessages(input);
+    case 'send_imessage':  return imessage.sendMessage(input);
+
+    // ── Contacts ─────────────────────────────────────────────────────────
+    case 'search_contacts': return contacts.searchContacts(input);
+
+    // ── Apple Notes ──────────────────────────────────────────────────────
+    case 'get_notes':   return notes.getNotes(input);
+    case 'create_note': return notes.createNote(input);
+
+    // ── Reminders ────────────────────────────────────────────────────────
+    case 'get_reminders':     return reminders.getReminders(input);
+    case 'create_reminder':   return reminders.createReminder(input);
+    case 'complete_reminder': return reminders.completeReminder(input);
+
+    // ── Photos ───────────────────────────────────────────────────────────
+    case 'search_photos': return photos.searchPhotos(input);
+
+    // ── Safari ───────────────────────────────────────────────────────────
+    case 'get_safari_tabs':       return safari.getSafariTabs();
+    case 'search_safari_history': return safari.searchSafariHistory(input);
+
+    // ── Notion ───────────────────────────────────────────────────────────
+    case 'notion_search':      return notion.searchNotion(input);
+    case 'notion_create_page': return notion.createPage(input);
+
+    // ── Obsidian ─────────────────────────────────────────────────────────
+    case 'obsidian_search':      return obsidian.searchNotes(input);
+    case 'obsidian_get_note':    return obsidian.getNote(input);
+    case 'obsidian_create_note': return obsidian.createNote(input);
+
+    // ── Weather ──────────────────────────────────────────────────────────
+    case 'get_weather': return weather.getWeather(input);
+
+    // ── Web Search ───────────────────────────────────────────────────────
+    case 'web_search': return search.webSearch(input);
+
+    // ── News ─────────────────────────────────────────────────────────────
+    case 'get_news': return newsService.getNews(input);
+
+    // ── Stocks ───────────────────────────────────────────────────────────
+    case 'get_stock': return stocks.getStock(input);
+
+    // ── Crypto ───────────────────────────────────────────────────────────
+    case 'get_crypto_price': return crypto.getCryptoPrice(input);
+    case 'get_top_crypto':   return crypto.getTopCrypto(input);
+
+    // ── Wikipedia ────────────────────────────────────────────────────────
+    case 'wikipedia_search':  return wikipedia.searchWikipedia(input);
+    case 'wikipedia_summary': return wikipedia.getWikipediaSummary(input);
+
     case 'system_restart': {
       await requestConfirmation('Mac neu starten?', 'Alle ungespeicherten Daten gehen verloren.');
       return osCtrl.systemRestart();
@@ -280,6 +347,8 @@ ipcMain.handle('config-status', () => ({
   openai:     !!process.env.OPENAI_API_KEY,
   elevenlabs: !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID),
   google:     gmail.isConfigured(),
+  notion:     notion.isConfigured(),
+  obsidian:   obsidian.isConfigured(),
 }));
 
 // ── IPC: Config get / set ──────────────────────────────────────────────────

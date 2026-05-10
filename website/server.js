@@ -10,31 +10,44 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ── Price IDs (set in .env or Stripe Dashboard) ───────────────────────────
+// ── Price IDs — create in Stripe Dashboard → Products → Add product ──────────
+// Set these in .env: STRIPE_PRICE_PRO_MONTHLY, STRIPE_PRICE_PRO_YEARLY,
+//                    STRIPE_PRICE_TEAM_MONTHLY, STRIPE_PRICE_TEAM_YEARLY
 const PRICES = {
-  personal: process.env.STRIPE_PRICE_PERSONAL,
-  pro:      process.env.STRIPE_PRICE_PRO,
+  pro_monthly:  process.env.STRIPE_PRICE_PRO_MONTHLY,
+  pro_yearly:   process.env.STRIPE_PRICE_PRO_YEARLY,
+  team_monthly: process.env.STRIPE_PRICE_TEAM_MONTHLY,
+  team_yearly:  process.env.STRIPE_PRICE_TEAM_YEARLY,
 };
 
-// ── Create checkout session ───────────────────────────────────────────────
+// ── Create checkout session ───────────────────────────────────────────────────
 app.post('/create-checkout-session', async (req, res) => {
-  const { plan } = req.body;
-  const priceId  = PRICES[plan];
+  const { plan, yearly = false } = req.body;
+  const key     = `${plan}_${yearly ? 'yearly' : 'monthly'}`;
+  const priceId = PRICES[key];
 
-  if (!priceId) return res.status(400).json({ error: `Unbekannter Plan: ${plan}` });
+  if (!priceId) {
+    return res.status(400).json({
+      error: `Price ID für "${key}" fehlt. Bitte STRIPE_PRICE_${key.toUpperCase()} in .env setzen.`
+    });
+  }
+
+  const base = process.env.BASE_URL || `http://localhost:${PORT}`;
 
   try {
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       mode: 'subscription',
+      payment_method_types: ['card', 'sepa_debit', 'paypal'],
       allow_promotion_codes: true,
+      billing_address_collection: 'auto',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.BASE_URL || `http://localhost:${PORT}`}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:  `${process.env.BASE_URL || `http://localhost:${PORT}`}/#pricing`,
+      success_url: `${base}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${base}/#pricing`,
       subscription_data: {
-        trial_period_days: 30,
-        metadata: { plan },
+        trial_period_days: 7,
+        metadata: { plan, yearly: String(yearly) },
       },
+      locale: 'de',
     });
     res.json({ url: session.url });
   } catch (e) {
@@ -43,7 +56,7 @@ app.post('/create-checkout-session', async (req, res) => {
   }
 });
 
-// ── Success page — verify payment + serve download ────────────────────────
+// ── Success page ──────────────────────────────────────────────────────────────
 app.get('/success', async (req, res) => {
   const { session_id } = req.query;
   try {
@@ -51,14 +64,13 @@ app.get('/success', async (req, res) => {
     if (session.payment_status !== 'paid' && session.status !== 'complete') {
       return res.redirect('/?error=payment_incomplete');
     }
-    // Serve the success page
     res.sendFile(path.join(__dirname, 'success.html'));
   } catch (e) {
     res.redirect('/');
   }
 });
 
-// ── Download endpoint (gated behind valid Stripe session) ─────────────────
+// ── Download (gated) ──────────────────────────────────────────────────────────
 app.get('/download/JARVIS-latest.dmg', (req, res) => {
   const dmgPath = path.join(__dirname, '..', 'build', 'JARVIS.dmg');
   if (!fs.existsSync(dmgPath)) {
@@ -67,7 +79,7 @@ app.get('/download/JARVIS-latest.dmg', (req, res) => {
   res.download(dmgPath, 'JARVIS.dmg');
 });
 
-// ── Stripe webhook (optional — for subscription lifecycle events) ─────────
+// ── Stripe webhook ─────────────────────────────────────────────────────────────
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
@@ -77,6 +89,9 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     return res.status(400).send(`Webhook Error: ${e.message}`);
   }
   switch (event.type) {
+    case 'customer.subscription.created':
+      console.log('[Stripe] New subscription:', event.data.object.id);
+      break;
     case 'customer.subscription.deleted':
       console.log('[Stripe] Subscription cancelled:', event.data.object.id);
       break;

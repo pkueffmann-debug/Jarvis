@@ -309,6 +309,50 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
           />
         </Section>
 
+        {/* Notion & Obsidian */}
+        <Section title="Notion &amp; Obsidian">
+          <ApiKeyRow
+            label="Notion API Key"
+            sub="notion.so/my-integrations → New integration"
+            envKey="NOTION_API_KEY"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="Notion Database ID"
+            sub="Datenbank-URL: notion.so/.../<ID>?v=..."
+            envKey="NOTION_DATABASE_ID"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="Obsidian Vault Pfad"
+            sub="Absoluter Pfad zu deinem Vault, z.B. /Users/paul/Notes"
+            envKey="OBSIDIAN_VAULT_PATH"
+            onSaved={refreshStatus}
+          />
+        </Section>
+
+        {/* Integration Status */}
+        <Section title="Integrations-Status">
+          <Row label="Notion" sub="Seiten lesen &amp; erstellen" right={<StatusDot ok={config?.notion} />} />
+          <Row label="Obsidian" sub="Vault lesen &amp; schreiben" right={<StatusDot ok={config?.obsidian} />} />
+          <Row label="iMessage" sub="Nachrichten via AppleScript" right={<StatusDot ok={true} />} />
+          <Row label="Apple Notes" sub="Notizen lesen &amp; erstellen" right={<StatusDot ok={true} />} />
+          <Row label="Reminders" sub="Erinnerungen verwalten" right={<StatusDot ok={true} />} />
+          <Row label="Contacts" sub="Mac-Kontakte suchen" right={<StatusDot ok={true} />} />
+          <Row label="Safari" sub="Tabs &amp; Verlauf" right={<StatusDot ok={true} />} />
+          <Row label="Photos" sub="Bibliothek durchsuchen" right={<StatusDot ok={true} />} />
+        </Section>
+
+        {/* Free APIs */}
+        <Section title="Web &amp; Research (kostenlos)">
+          <Row label="Wetter" sub="Open-Meteo — kein API Key nötig" right={<StatusDot ok={true} />} />
+          <Row label="Web-Suche" sub="DuckDuckGo Instant Answers" right={<StatusDot ok={true} />} />
+          <Row label="News" sub="RSS Feeds (BBC, Tagesschau, TechCrunch)" right={<StatusDot ok={true} />} />
+          <Row label="Aktien" sub="Yahoo Finance" right={<StatusDot ok={true} />} />
+          <Row label="Krypto" sub="CoinGecko" right={<StatusDot ok={true} />} />
+          <Row label="Wikipedia" sub="DE &amp; EN" right={<StatusDot ok={true} />} />
+        </Section>
+
         {/* About */}
         <div className="text-center pt-1 pb-2">
           <p className="text-subtext/40 text-[11px]">JARVIS v0.2 · claude-sonnet-4-6</p>

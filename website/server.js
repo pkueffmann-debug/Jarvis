@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const express  = require('express');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const path     = require('path');
@@ -12,12 +12,12 @@ app.use(express.static(__dirname));
 
 // ── Price IDs — create in Stripe Dashboard → Products → Add product ──────────
 const PRICES = {
-  pro_monthly:        process.env.STRIPE_PRICE_PRO_MONTHLY,
-  pro_yearly:         process.env.STRIPE_PRICE_PRO_YEARLY,
-  team_monthly:       process.env.STRIPE_PRICE_TEAM_MONTHLY,
-  team_yearly:        process.env.STRIPE_PRICE_TEAM_YEARLY,
-  enterprise_monthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY,
-  enterprise_yearly:  process.env.STRIPE_PRICE_ENTERPRISE_YEARLY,
+  pro_monthly:        process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+  pro_yearly:         process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+  team_monthly:       process.env.STRIPE_TEAM_MONTHLY_PRICE_ID,
+  team_yearly:        process.env.STRIPE_TEAM_YEARLY_PRICE_ID,
+  enterprise_monthly: process.env.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID,
+  enterprise_yearly:  process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID,
 };
 
 // ── Create checkout session ───────────────────────────────────────────────────

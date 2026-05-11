@@ -324,9 +324,25 @@ function trimHistory(history, maxLen = 40) {
   }
 }
 
+// ── Model Router ──────────────────────────────────────────────────────────────
+// Vision tasks → claude-sonnet-4-6 (has vision); quick tool-only tasks could use
+// a faster model, but we keep Claude for quality. GPT-4o / Gemini routing is a
+// future upgrade — for now we always use Claude but select the right variant.
+function selectModel(userMsg) {
+  const msg = (typeof userMsg === 'string' ? userMsg : '').toLowerCase();
+  // Vision tasks stay on Sonnet (vision support)
+  if (/bildschirm|screen|foto|bild|screenshot|siehst|schau/i.test(msg)) return 'claude-sonnet-4-6';
+  // Complex planning / writing → Sonnet
+  if (/schreib|plan|erkl|analysier|zusammenfass|erstell/i.test(msg)) return 'claude-sonnet-4-6';
+  // Fast tool lookups → Haiku (cheaper, faster)
+  if (/wetter|uhrzeit|datum|kurs|preis|aktie|crypto/i.test(msg)) return 'claude-haiku-4-5-20251001';
+  return 'claude-sonnet-4-6';
+}
+
 async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse } = {}) {
   const client   = getClient();
   const hasTools = typeof onToolUse === 'function';
+  const model    = selectModel(typeof userMsg === 'string' ? userMsg : '');
   let   fullText = '';
 
   // Send at most the last 10 messages from history to keep the payload small and
@@ -345,8 +361,8 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
     apiMessages = sanitizeMessages(apiMessages);
 
     const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      model,
+      max_tokens: model === 'claude-haiku-4-5-20251001' ? 1024 : 2048,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       ...(hasTools ? { tools: TOOLS } : {}),
       messages: apiMessages,

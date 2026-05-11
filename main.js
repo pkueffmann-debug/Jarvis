@@ -198,7 +198,13 @@ async function toolExecutor(name, input) {
     case 'system_sleep':          return osCtrl.systemSleep();
 
     // ── Screen Awareness ──────────────────────────────────────────────────
-    case 'analyze_screen':        return screen_.analyzeScreen(input.question);
+    case 'analyze_screen': {
+      mainWindow.hide();
+      await new Promise(r => setTimeout(r, 500));
+      const analysis = await screen_.analyzeScreen(input.question);
+      mainWindow.show();
+      return analysis;
+    }
 
     // ── Clipboard Manager ─────────────────────────────────────────────────
     case 'get_clipboard_history': return { history: clipHist.getHistory(input.n || 10) };
@@ -337,7 +343,7 @@ ipcMain.handle('open-external', (_e, url) => { shell.openExternal(url); return {
 // ── IPC: License ──────────────────────────────────────────────────────────
 ipcMain.handle('license-status',   ()          => license.getStatus());
 ipcMain.handle('license-activate', (_e, key)   => license.activateLicense(key));
-ipcMain.handle('license-checkout', (_e, plan)  => license.createCheckoutUrl(plan));
+ipcMain.handle('license-checkout', (_e, plan, yearly = false) => license.createCheckoutUrl(plan, yearly));
 ipcMain.handle('license-revoke',   ()          => { license.revokeLicense(); return { done: true }; });
 
 // ── IPC: Google ────────────────────────────────────────────────────────────
@@ -375,14 +381,20 @@ ipcMain.handle('update-install', () => { updater.installNow(); return { ok: true
 
 // ── IPC: Config status ─────────────────────────────────────────────────────
 ipcMain.handle('config-status', () => ({
-  anthropic:  !!process.env.ANTHROPIC_API_KEY,
-  openai:     !!process.env.OPENAI_API_KEY,
-  elevenlabs: !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID),
-  google:     gmail.isConfigured(),
-  notion:     notion.isConfigured(),
-  obsidian:   obsidian.isConfigured(),
-  icloudMail: icloudMail.isConfigured(),
+  anthropic:   !!process.env.ANTHROPIC_API_KEY,
+  openai:      !!process.env.OPENAI_API_KEY,
+  elevenlabs:  !!(process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_VOICE_ID),
+  google:      gmail.isConfigured(),
+  notion:      notion.isConfigured(),
+  obsidian:    obsidian.isConfigured(),
+  icloudMail:  icloudMail.isConfigured(),
+  icloudEmail: !!process.env.ICLOUD_EMAIL,
+  icloudPass:  !!process.env.ICLOUD_APP_PASSWORD,
 }));
+
+// ── IPC: Briefing toggle ───────────────────────────────────────────────────
+ipcMain.handle('briefing-get', () => proactive.isBriefingEnabled());
+ipcMain.handle('briefing-set', (_e, val) => { proactive.setBriefingEnabled(val); return { ok: true }; });
 
 // ── IPC: Config get / set ──────────────────────────────────────────────────
 ipcMain.handle('config-get', (_e, key) => configSvc.get(key));

@@ -18,24 +18,27 @@ app.use(cors({ origin: '*' }));
 // ── Plans ─────────────────────────────────────────────────────────────────────
 const PLANS = {
   pro: {
-    name:     'Pro',
-    price:    49,
-    priceId:  process.env.STRIPE_PRO_PRICE_ID,
+    name:          'Pro',
+    price:         49,
+    priceMonthly:  process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+    priceYearly:   process.env.STRIPE_PRO_YEARLY_PRICE_ID,
     maxUsers: 1,
     features: ['Unlimited Nachrichten', 'Alle Integrationen', 'Wake Word', 'Voice Control'],
   },
   team: {
-    name:     'Team',
-    price:    199,
-    priceId:  process.env.STRIPE_TEAM_PRICE_ID,
+    name:         'Team',
+    price:        199,
+    priceMonthly: process.env.STRIPE_TEAM_MONTHLY_PRICE_ID,
+    priceYearly:  process.env.STRIPE_TEAM_YEARLY_PRICE_ID,
     maxUsers: 10,
     features: ['Bis zu 10 User', 'Admin Panel', 'Team-Gedächtnis', 'Priority Support'],
   },
   enterprise: {
-    name:     'Enterprise',
-    price:    499,
-    priceId:  process.env.STRIPE_ENTERPRISE_PRICE_ID,
-    maxUsers: -1, // unlimited
+    name:         'Enterprise',
+    price:        499,
+    priceMonthly: process.env.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID,
+    priceYearly:  process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID,
+    maxUsers: -1,
     features: ['Unlimited User', 'On-Premise Option', 'SLA', 'Dedizierter Support'],
   },
 };
@@ -106,14 +109,14 @@ app.post('/create-checkout', async (req, res) => {
 
   if (!planData) return res.status(400).json({ error: `Unbekannter Plan: ${plan}` });
 
-  const priceIdKey = yearly
-    ? `STRIPE_${plan.toUpperCase()}_PRICE_ID_YEARLY`
-    : `STRIPE_${plan.toUpperCase()}_PRICE_ID`;
-  const priceId = process.env[priceIdKey] || planData.priceId;
+  const priceId = yearly ? planData.priceYearly : planData.priceMonthly;
 
   if (!priceId) {
+    const key = yearly
+      ? `STRIPE_${plan.toUpperCase()}_YEARLY_PRICE_ID`
+      : `STRIPE_${plan.toUpperCase()}_MONTHLY_PRICE_ID`;
     return res.status(400).json({
-      error: `Price ID für "${plan}${yearly ? ' jährlich' : ''}" fehlt. Bitte ${priceIdKey} in ENV setzen.`,
+      error: `Price ID für "${plan}${yearly ? ' jährlich' : ''}" fehlt. Bitte ${key} in ENV setzen.`,
     });
   }
 

@@ -132,6 +132,7 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings }) {
   const [speaking,   setSpeaking]   = useState(false);
   const [toolStatus,  setToolStatus]  = useState('');
   const [confirmData, setConfirmData] = useState(null);
+  const [actionFeed,  setActionFeed]  = useState([]);
 
   const bottomRef     = useRef(null);
   const inputRef      = useRef(null);
@@ -212,7 +213,14 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings }) {
       return;
     }
 
-    window.jarvis.onToolStatus((s) => { setBusy(false); setToolStatus(s); });
+    window.jarvis.onToolStatus((s) => {
+      setBusy(false);
+      setToolStatus(s);
+      setActionFeed((prev) => {
+        const entry = { id: Date.now(), text: s };
+        return [entry, ...prev].slice(0, 5);
+      });
+    });
 
     window.jarvis.onChunk((chunk) => {
       streamTextRef.current += chunk;
@@ -308,6 +316,22 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings }) {
           onConfirm={() => handleConfirm(true)}
           onCancel={() => handleConfirm(false)}
         />
+      )}
+
+      {/* ── Live Action Feed ───────────────────────────────────────── */}
+      {actionFeed.length > 0 && (
+        <div className="shrink-0 px-3 pb-1">
+          <div className="rounded-xl overflow-hidden" style={{ background:'rgba(10,10,15,0.8)', border:'1px solid rgba(99,102,241,0.12)' }}>
+            {actionFeed.map((a, i) => (
+              <div key={a.id} className={`flex items-center gap-2 px-3 py-1.5 ${i > 0 ? 'border-t border-white/5' : ''}`}
+                   style={{ opacity: 1 - i * 0.22 }}>
+                {i === 0 && <div className="w-2 h-2 rounded-full border border-[#6366F1] border-t-transparent animate-spin shrink-0" />}
+                {i > 0  && <div className="w-2 h-2 rounded-full bg-zinc-700 shrink-0" />}
+                <span className="text-[10px] text-zinc-400 truncate">{a.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ── Input ──────────────────────────────────────────────────── */}

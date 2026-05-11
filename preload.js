@@ -59,11 +59,19 @@ contextBridge.exposeInMainWorld('jarvis', {
   // License / Paywall
   licenseStatus:   ()        => ipcRenderer.invoke('license-status'),
   licenseActivate: (key)     => ipcRenderer.invoke('license-activate', key),
-  licenseCheckout: (plan)    => ipcRenderer.invoke('license-checkout', plan),
+  licenseCheckout: (plan, yearly = false) => ipcRenderer.invoke('license-checkout', plan, yearly),
   licenseRevoke:   ()        => ipcRenderer.invoke('license-revoke'),
   onPaywall:       (cb)      => ipcRenderer.on('jarvis-paywall', (_e, s) => cb(s)),
   offPaywall:      ()        => ipcRenderer.removeAllListeners('jarvis-paywall'),
 
   // Open URL in default browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+  // Briefing
+  briefingGet:    ()    => ipcRenderer.invoke('briefing-get'),
+  briefingSet:    (val) => ipcRenderer.invoke('briefing-set', val),
+
+  // Speak buffer from proactive TTS
+  onSpeakBuffer: (cb) => ipcRenderer.on('jarvis-speak-buffer', (_e, b64) => cb(b64)),
+  offSpeakBuffer: ()  => ipcRenderer.removeAllListeners('jarvis-speak-buffer'),
 });

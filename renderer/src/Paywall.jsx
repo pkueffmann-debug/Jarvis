@@ -4,8 +4,7 @@ const PLANS = [
   {
     id: 'free',
     name: 'Free',
-    price: '0',
-    period: '',
+    monthly: '0', yearly: '0',
     limit: '50 Nachrichten / Tag',
     features: ['Alle Integrationen', 'Kein API-Key nötig', '50 Msg/Tag'],
     cta: 'Kostenlos nutzen',
@@ -14,8 +13,7 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: '49',
-    period: '/ Monat',
+    monthly: '49', yearly: '41',
     limit: 'Unbegrenzt',
     features: ['Unbegrenzte Nachrichten', 'Alle Integrationen', '1 Nutzer'],
     cta: 'Pro starten',
@@ -24,8 +22,7 @@ const PLANS = [
   {
     id: 'team',
     name: 'Team',
-    price: '199',
-    period: '/ Monat',
+    monthly: '199', yearly: '166',
     limit: 'Unbegrenzt',
     features: ['Unbegrenzte Nachrichten', 'Alle Integrationen', 'Bis 10 Nutzer'],
     cta: 'Team starten',
@@ -34,8 +31,7 @@ const PLANS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: '499',
-    period: '/ Monat',
+    monthly: '499', yearly: '415',
     limit: 'Unbegrenzt',
     features: ['Unbegrenzte Nachrichten', 'Alle Integrationen', 'Unbegrenzte Nutzer'],
     cta: 'Enterprise starten',
@@ -49,6 +45,7 @@ export default function Paywall({ licenseStatus, onActivated, onContinueFree }) 
   const [error, setError]         = useState('');
   const [success, setSuccess]     = useState('');
   const [checkingPlan, setCheckingPlan] = useState(null);
+  const [yearly, setYearly]       = useState(false);
 
   const isTrial   = licenseStatus?.status === 'trial';
   const isFree    = licenseStatus?.status === 'free';
@@ -79,7 +76,7 @@ export default function Paywall({ licenseStatus, onActivated, onContinueFree }) 
     if (planId === 'free') { onContinueFree?.(); return; }
     setCheckingPlan(planId);
     try {
-      const url = await window.jarvis.licenseCheckout(planId);
+      const url = await window.jarvis.licenseCheckout(planId, yearly);
       if (url) window.jarvis.openExternal(url);
       else setError('Checkout konnte nicht geöffnet werden.');
     } catch {
@@ -139,6 +136,20 @@ export default function Paywall({ licenseStatus, onActivated, onContinueFree }) 
         </div>
       </div>
 
+      {/* Billing toggle */}
+      <div className="flex-shrink-0 px-5 pb-3 flex items-center justify-center gap-3">
+        <span className={`text-xs font-medium transition-colors ${!yearly ? 'text-white' : 'text-zinc-500'}`}>Monatlich</span>
+        <button
+          onClick={() => setYearly(y => !y)}
+          className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${yearly ? 'bg-blue-600' : 'bg-zinc-700'}`}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${yearly ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+        </button>
+        <span className={`text-xs font-medium transition-colors ${yearly ? 'text-white' : 'text-zinc-500'}`}>
+          Jährlich <span className="text-green-400 font-semibold">−17%</span>
+        </span>
+      </div>
+
       {/* Plans */}
       <div className="flex-shrink-0 px-5 pb-4 grid grid-cols-2 gap-2.5">
         {PLANS.map((plan) => (
@@ -161,12 +172,12 @@ export default function Paywall({ licenseStatus, onActivated, onContinueFree }) 
               {plan.name}
             </p>
             <div className="flex items-baseline gap-0.5 mb-2">
-              {plan.price === '0' ? (
+              {plan.monthly === '0' ? (
                 <span className={`text-xl font-bold ${plan.highlight ? 'text-white' : 'text-zinc-200'}`}>Gratis</span>
               ) : (
                 <>
-                  <span className={`text-xl font-bold ${plan.highlight ? 'text-white' : 'text-zinc-200'}`}>€{plan.price}</span>
-                  <span className={`text-[10px] ${plan.highlight ? 'text-blue-200' : 'text-zinc-500'}`}>{plan.period}</span>
+                  <span className={`text-xl font-bold ${plan.highlight ? 'text-white' : 'text-zinc-200'}`}>€{yearly ? plan.yearly : plan.monthly}</span>
+                  <span className={`text-[10px] ${plan.highlight ? 'text-blue-200' : 'text-zinc-500'}`}>/ Monat</span>
                 </>
               )}
             </div>

@@ -155,6 +155,16 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
   const [memStats,  setMemStats]  = useState({ factCount:0, historyCount:0 });
   const [connecting, setConnecting] = useState(false);
   const [clearing,   setClearing]   = useState('');
+  const [briefingOn, setBriefingOn] = useState(true);
+
+  useEffect(() => {
+    window.jarvis?.briefingGet?.().then(v => setBriefingOn(v)).catch(() => {});
+  }, []);
+
+  function toggleBriefing(val) {
+    setBriefingOn(val);
+    window.jarvis?.briefingSet?.(val);
+  }
 
   function refreshStatus() {
     if (!window.jarvis) return;
@@ -281,6 +291,11 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
             sub={wakeWordOn ? 'Hört auf dich · Picovoice AccessKey nötig' : 'Deaktiviert — AccessKey in API-Keys eintragen'}
             right={<Toggle value={!!wakeWordOn} onChange={onToggleWakeWord} />}
           />
+          <Row
+            label="Tägliches Briefing"
+            sub="Morgens um 08:00 Gmail + Kalender + Wetter vorlesen"
+            right={<Toggle value={briefingOn} onChange={toggleBriefing} />}
+          />
         </Section>
 
         {/* Memory */}
@@ -306,6 +321,22 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
             right={clearing==='memory'
               ? <div className="w-4 h-4 border-2 border-red-400/40 border-t-red-400 rounded-full animate-spin"/>
               : <Chevron />}
+          />
+        </Section>
+
+        {/* iCloud Mail */}
+        <Section title="iCloud Mail">
+          <ApiKeyRow
+            label="iCloud E-Mail"
+            sub="z.B. paul@icloud.com oder @me.com"
+            envKey="ICLOUD_EMAIL"
+            onSaved={refreshStatus}
+          />
+          <ApiKeyRow
+            label="App-spezifisches Passwort"
+            sub="appleid.apple.com → Sicherheit → App-Passwörter"
+            envKey="ICLOUD_APP_PASSWORD"
+            onSaved={refreshStatus}
           />
         </Section>
 
@@ -335,6 +366,7 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
         <Section title="Integrations-Status">
           <Row label="Notion" sub="Seiten lesen &amp; erstellen" right={<StatusDot ok={config?.notion} />} />
           <Row label="Obsidian" sub="Vault lesen &amp; schreiben" right={<StatusDot ok={config?.obsidian} />} />
+          <Row label="iCloud Mail" sub="IMAP imap.mail.me.com" right={<StatusDot ok={!!(config?.icloudEmail && config?.icloudPass)} />} />
           <Row label="iMessage" sub="Nachrichten via AppleScript" right={<StatusDot ok={true} />} />
           <Row label="Apple Notes" sub="Notizen lesen &amp; erstellen" right={<StatusDot ok={true} />} />
           <Row label="Reminders" sub="Erinnerungen verwalten" right={<StatusDot ok={true} />} />

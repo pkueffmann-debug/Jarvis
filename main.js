@@ -396,6 +396,30 @@ ipcMain.handle('config-status', () => ({
 ipcMain.handle('briefing-get', () => proactive.isBriefingEnabled());
 ipcMain.handle('briefing-set', (_e, val) => { proactive.setBriefingEnabled(val); return { ok: true }; });
 
+// ── IPC: Supabase config ───────────────────────────────────────────────────
+ipcMain.handle('supabase-config', () => ({
+  url: process.env.SUPABASE_URL || '',
+  key: process.env.SUPABASE_ANON_KEY || '',
+}));
+
+// ── IPC: Window mode ───────────────────────────────────────────────────────
+ipcMain.handle('set-window-mode', (_e, mode) => {
+  if (!mainWindow) return;
+  const pos = mainWindow.getPosition();
+  if (mode === 'hud') {
+    const [x, y] = pos;
+    const diff = Math.round((600 - 420) / 2);
+    mainWindow.setSize(420, 420, true);
+    mainWindow.setPosition(x, y + diff, true);
+  } else {
+    const [x, y] = pos;
+    const diff = Math.round((600 - 420) / 2);
+    mainWindow.setSize(380, 600, true);
+    mainWindow.setPosition(x, y - diff, true);
+  }
+  return { ok: true };
+});
+
 // ── IPC: Config get / set ──────────────────────────────────────────────────
 ipcMain.handle('config-get', (_e, key) => configSvc.get(key));
 ipcMain.handle('config-set', (_e, key, value) => {

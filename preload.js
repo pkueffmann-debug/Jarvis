@@ -67,6 +67,12 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Open URL in default browser
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
+  // Supabase config (exposes URL + anon key to renderer securely)
+  supabaseConfig: () => ipcRenderer.invoke('supabase-config'),
+
+  // Window mode (HUD vs Chat)
+  setWindowMode: (mode) => ipcRenderer.invoke('set-window-mode', mode),
+
   // Briefing
   briefingGet:    ()    => ipcRenderer.invoke('briefing-get'),
   briefingSet:    (val) => ipcRenderer.invoke('briefing-set', val),

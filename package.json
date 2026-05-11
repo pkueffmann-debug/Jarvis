@@ -15,7 +15,8 @@
     "dmg": "node scripts/create-dmg.js",
     "backend": "cd backend && node server.js",
     "backend:dev": "cd backend && node --watch server.js",
-    "deploy:backend": "cd backend && railway up --detach"
+    "deploy:backend": "cd backend && railway up --detach",
+    "release": "npm run build && electron-builder --mac dmg --publish always"
   },
   "build": {
     "appId": "com.jarvis.app",
@@ -118,6 +119,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@fontsource/inter": "^5.0.17",
     "@picovoice/porcupine-node": "^4.0.2",
+    "@supabase/supabase-js": "^2.105.4",
     "canvas": "^3.2.3",
     "dotenv": "^16.4.1",
     "electron-updater": "^6.8.3",

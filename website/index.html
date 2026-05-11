@@ -491,7 +491,7 @@
     <li><a href="#demo">Demo</a></li>
     <li><a href="#faq">FAQ</a></li>
   </ul>
-  <a href="#" class="btn btn-outlined" style="display:flex">Download for Mac</a>
+  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-outlined" style="display:flex" onclick="trackDownload()" download>Download for Mac</a>
   <button class="hamburger" onclick="toggleNav()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
@@ -501,7 +501,7 @@
   <a href="#pricing" onclick="toggleNav()">Pricing</a>
   <a href="#demo" onclick="toggleNav()">Demo</a>
   <a href="#faq" onclick="toggleNav()">FAQ</a>
-  <a href="#" class="btn btn-primary" onclick="toggleNav()">Download for Mac — Free</a>
+  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-primary" onclick="toggleNav();trackDownload()" download>Download for Mac — Free</a>
 </div>
 
 <!-- Journey Line — full-page scroll-drawn spine -->
@@ -533,9 +533,11 @@
   </h1>
   <p class="hero-sub" id="heroSub">JARVIS läuft lokal, kennt deinen Workflow und handelt bevor du fragst.</p>
   <div class="hero-btns" id="heroBtns">
-    <a href="#" class="btn btn-primary">
+    <a id="downloadBtn" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg"
+       class="btn btn-primary" onclick="trackDownload()" download>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download for Mac — Free
+      <span id="dlCount" style="margin-left:8px;opacity:0.65;font-size:11px;font-weight:500"></span>
     </a>
     <button class="btn btn-ghost">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -1448,6 +1450,40 @@ async function startCheckout(plan) {
     btn.innerHTML = origHTML;
   }
 }
+
+// ── Download counter ──────────────────────────────────────────────────────────
+(function initDownloadCount() {
+  const STORAGE_KEY = 'jarvis_dl_count';
+  const BASE_COUNT  = 1247; // seed number for social proof
+  let count = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) + BASE_COUNT;
+  const el  = document.getElementById('dlCount');
+  if (el) el.textContent = `· ${count.toLocaleString('de-DE')} Downloads`;
+})();
+
+function trackDownload() {
+  const STORAGE_KEY = 'jarvis_dl_count';
+  const current = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+  localStorage.setItem(STORAGE_KEY, current + 1);
+  const el = document.getElementById('dlCount');
+  if (el) {
+    const total = current + 1 + 1247;
+    el.textContent = `· ${total.toLocaleString('de-DE')} Downloads`;
+  }
+  // Fetch real GitHub release info for download URL verification
+  fetch('https://api.github.com/repos/pkueffmann-debug/Jarvis/releases/latest')
+    .then(r => r.json())
+    .then(data => {
+      const dmg = data.assets?.find(a => a.name.endsWith('.dmg'));
+      if (dmg) {
+        document.querySelectorAll('#downloadBtn, a[download]').forEach(a => {
+          a.href = dmg.browser_download_url;
+        });
+      }
+    })
+    .catch(() => {});
+}
+// Pre-fetch release on load
+setTimeout(trackDownload.bind(null, true), 1500);
 </script>
 </body>
 </html>

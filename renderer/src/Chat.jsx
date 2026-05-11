@@ -124,7 +124,7 @@ function Clock() {
 
 // ── Main Chat ──────────────────────────────────────────────────────────────
 
-export default function Chat({ ttsOn, onToggleTTS, onOpenSettings }) {
+export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
   const [messages,   setMessages]   = useState(WELCOME);
   const [input,      setInput]      = useState('');
   const [busy,       setBusy]       = useState(false);
@@ -291,13 +291,23 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings }) {
             <IconGear />
           </button>
 
-          {/* Close */}
-          <button onClick={() => window.jarvis?.closeWindow()}
-                  className="w-5 h-5 rounded flex items-center justify-center text-subtext hover:text-white hover:bg-white/10 transition-colors">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
+          {/* Back to HUD / Close */}
+          {onClose ? (
+            <button onClick={onClose}
+                    title="Zurück zum HUD"
+                    className="w-6 h-6 rounded flex items-center justify-center text-subtext hover:text-[#818CF8] hover:bg-white/10 transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10"/><path d="M12 8l-4 4 4 4M16 12H8"/>
+              </svg>
+            </button>
+          ) : (
+            <button onClick={() => window.jarvis?.closeWindow()}
+                    className="w-5 h-5 rounded flex items-center justify-center text-subtext hover:text-white hover:bg-white/10 transition-colors">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 

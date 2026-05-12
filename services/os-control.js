@@ -34,20 +34,85 @@ function macOnly(name) {
   return { error: `${name} ist nur auf macOS verfügbar.` };
 }
 
+// ── App name aliases & CLI fallbacks ──────────────────────────────────────
+
+const APP_ALIASES = {
+  'vs code':        'Visual Studio Code',
+  'vscode':         'Visual Studio Code',
+  'code':           'Visual Studio Code',
+  'chrome':         'Google Chrome',
+  'google chrome':  'Google Chrome',
+  'edge':           'Microsoft Edge',
+  'word':           'Microsoft Word',
+  'excel':          'Microsoft Excel',
+  'powerpoint':     'Microsoft PowerPoint',
+  'slack':          'Slack',
+  'zoom':           'zoom.us',
+  'terminal':       'Terminal',
+  'iterm':          'iTerm',
+  'iterm2':         'iTerm',
+  'finder':         'Finder',
+  'notes':          'Notes',
+  'messages':       'Messages',
+  'facetime':       'FaceTime',
+  'photos':         'Photos',
+  'music':          'Music',
+  'podcasts':       'Podcasts',
+  'maps':           'Maps',
+  'calendar':       'Calendar',
+  'reminders':      'Reminders',
+  'contacts':       'Contacts',
+  'preview':        'Preview',
+  'textedit':       'TextEdit',
+  'activity monitor': 'Activity Monitor',
+  'system preferences': 'System Preferences',
+  'system settings': 'System Settings',
+};
+
+// CLI commands to try if `open -a` fails
+const APP_CLI_FALLBACKS = {
+  'visual studio code': 'code',
+  'spotify':            'spotify',
+  'iterm':              'iterm2',
+};
+
+function resolveAppName(name) {
+  return APP_ALIASES[name.toLowerCase().trim()] || name;
+}
+
+function spawnDetached(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', ...opts });
+    child.unref();
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0 || code === null) resolve();
+      else reject(new Error(`"${cmd}" exit ${code}`));
+    });
+  });
+}
+
 // ── Apps & Windows ─────────────────────────────────────────────────────────
 
 async function openApp({ appName }) {
   if (isDarwin) {
-    await new Promise((resolve, reject) => {
-      const child = spawn('open', ['-a', appName], { detached: true, stdio: 'ignore' });
-      child.unref();
-      child.on('error', reject);
-      // open exits immediately after launching — wait for close
-      child.on('close', (code) => {
-        if (code === 0 || code === null) resolve();
-        else reject(new Error(`open -a "${appName}" exit code ${code}`));
-      });
-    });
+    const resolved = resolveAppName(appName);
+    try {
+      await spawnDetached('open', ['-a', resolved]);
+    } catch {
+      // Fallback 1: try original name if alias was used
+      if (resolved !== appName) {
+        try { await spawnDetached('open', ['-a', appName]); return { opened: appName }; } catch {}
+      }
+      // Fallback 2: try CLI command (e.g. `code` for VS Code)
+      const cli = APP_CLI_FALLBACKS[resolved.toLowerCase()];
+      if (cli) {
+        try { await spawnDetached(cli, [], { shell: true }); return { opened: appName }; } catch {}
+      }
+      // Fallback 3: open by URL scheme or just `open appName`
+      try { await spawnDetached('open', [appName], { shell: false }); } catch {}
+    }
+    return { opened: appName };
   } else if (isWindows) {
     await run(`start "" "${appName}"`, { shell: true });
   }

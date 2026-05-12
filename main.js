@@ -79,9 +79,10 @@ ipcMain.on('confirm-action', (_e, confirmed) => {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 380, height: 600,
+    width: 900, height: 900,
     show: false, frame: false, resizable: false,
-    transparent: true, alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
+    center: true,
+    transparent: true, alwaysOnTop: false, skipTaskbar: false, hasShadow: false,
     icon: path.join(__dirname, 'assets', 'jarvis.icns'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -90,10 +91,6 @@ function createWindow() {
   });
   if (isDev) mainWindow.loadURL('http://localhost:5173');
   else       mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
-
-  mainWindow.on('blur', () => {
-    if (mainWindow && !mainWindow.webContents.isDevToolsFocused()) mainWindow.hide();
-  });
 }
 
 // ── Tray ───────────────────────────────────────────────────────────────────
@@ -127,22 +124,7 @@ function createTray() {
   tray.on('click', toggleWindow);
 }
 
-function getWindowPosition() {
-  const { width:ww, height:wh } = mainWindow.getBounds();
-  const tb = tray.getBounds();
-  const { workArea } = screen.getDisplayNearestPoint({ x:tb.x, y:tb.y });
-  let x = Math.round(tb.x + tb.width/2 - ww/2);
-  // On Windows the tray is at the bottom; open window above the tray icon
-  const isWin = process.platform === 'win32';
-  let y = isWin
-    ? Math.round(tb.y - wh - 4)
-    : Math.round(tb.y + tb.height + 4);
-  x = Math.max(workArea.x+8, Math.min(x, workArea.x+workArea.width-ww-8));
-  y = Math.max(workArea.y+8, Math.min(y, workArea.y+workArea.height-wh-8));
-  return { x, y };
-}
-
-function showWindow()   { const p = getWindowPosition(); mainWindow.setPosition(p.x, p.y, false); mainWindow.show(); mainWindow.focus(); }
+function showWindow()   { mainWindow.center(); mainWindow.show(); mainWindow.focus(); }
 function toggleWindow() { mainWindow.isVisible() ? mainWindow.hide() : showWindow(); }
 
 // ── Tool executor ──────────────────────────────────────────────────────────
@@ -403,19 +385,8 @@ ipcMain.handle('supabase-config', () => ({
 }));
 
 // ── IPC: Window mode ───────────────────────────────────────────────────────
-ipcMain.handle('set-window-mode', (_e, mode) => {
-  if (!mainWindow) return;
-  const pos = mainWindow.getPosition();
-  if (mode === 'hud') {
-    const [x, y] = pos;
-    mainWindow.setSize(300, 300, true);
-    // Center the smaller HUD window relative to where chat was
-    mainWindow.setPosition(x + 40, y + 150, true);
-  } else {
-    const [x, y] = pos;
-    mainWindow.setSize(380, 600, true);
-    mainWindow.setPosition(Math.max(0, x - 40), Math.max(0, y - 150), true);
-  }
+ipcMain.handle('set-window-mode', (_e, _mode) => {
+  // Combined 900×900 layout — no mode switching needed
   return { ok: true };
 });
 
@@ -506,8 +477,9 @@ app.whenReady().then(() => {
     setDockIcon();
     if (app.dock) app.dock.show();
   } else {
-    // Normal tray-only mode: hide dock
-    if (app.dock) app.dock.hide();
+    // Show dock icon for the large window
+    setDockIcon();
+    if (app.dock) app.dock.show();
   }
 
   // Proaktiver Modus — startet Cron-Jobs nach Window-Erstellung

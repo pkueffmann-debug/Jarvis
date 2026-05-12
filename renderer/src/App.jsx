@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Chat from './Chat';
 import Settings from './Settings';
 import WakeWord from './WakeWord';
@@ -7,12 +7,17 @@ import HUD from './HUD';
 import AuthScreen from './AuthScreen';
 import { getSession, onAuthStateChange } from './auth';
 
+const W = 900;
+const H = 900;
+const HUD_H = 380;   // top HUD section height
+const CHAT_H = H - HUD_H - 1; // bottom chat section height (1px divider)
+
 export default function App() {
-  const [mode,       setMode]       = useState('loading'); // loading | auth | hud | chat
-  const [session,    setSession]    = useState(null);
-  const [ttsOn,      setTtsOn]      = useState(() => localStorage.getItem('jarvis-tts')      !== 'false');
-  const [wakeWordOn, setWakeWordOn] = useState(() => localStorage.getItem('jarvis-wakeword') === 'true');
-  const [wakeFlash,  setWakeFlash]  = useState(false);
+  const [mode,          setMode]          = useState('loading'); // loading | auth | main
+  const [session,       setSession]       = useState(null);
+  const [ttsOn,         setTtsOn]         = useState(() => localStorage.getItem('jarvis-tts') !== 'false');
+  const [wakeWordOn,    setWakeWordOn]     = useState(() => localStorage.getItem('jarvis-wakeword') === 'true');
+  const [wakeFlash,     setWakeFlash]     = useState(false);
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [showSettings,  setShowSettings]  = useState(false);
   const [showPaywall,   setShowPaywall]   = useState(false);
@@ -20,7 +25,9 @@ export default function App() {
     gmail: false, calendar: false, voice: true, memory: true, screen: true, system: true,
   });
 
-  // ── Boot: check auth session ───────────────────────────────────────────────
+  const chatInputRef = useRef(null);
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     async function boot() {
       try {
@@ -29,13 +36,9 @@ export default function App() {
         if (sess) {
           await startLoggedIn();
         } else {
-          // No session — show auth if Supabase is configured
           const cfg = await window.jarvis?.supabaseConfig?.().catch(() => null);
-          if (cfg?.url) {
-            setMode('auth');
-          } else {
-            await startLoggedIn(); // no Supabase → skip auth
-          }
+          if (cfg?.url) setMode('auth');
+          else          await startLoggedIn();
         }
       } catch {
         await startLoggedIn();
@@ -44,9 +47,9 @@ export default function App() {
     boot();
 
     let unsub;
-    onAuthStateChange((sess) => {
-      setSession(sess);
-    }).then(({ data }) => { unsub = data?.subscription; }).catch(() => {});
+    onAuthStateChange((sess) => setSession(sess))
+      .then(({ data }) => { unsub = data?.subscription; })
+      .catch(() => {});
     return () => unsub?.unsubscribe?.();
   }, []); // eslint-disable-line
 
@@ -54,45 +57,25 @@ export default function App() {
     try {
       const status = await window.jarvis.licenseStatus();
       setLicenseStatus(status);
-      if (status.status === 'expired') {
-        setMode('hud');
-        setShowPaywall(true);
-      } else {
-        setMode('hud');
-        window.jarvis?.setWindowMode?.('hud');
-      }
-    } catch {
-      setMode('hud');
-    }
+      if (status.status === 'expired') setShowPaywall(true);
+    } catch {}
+    setMode('main');
   }
 
-  // ── Google status → HUD segment map ───────────────────────────────────────
+  // ── Google → HUD segments ─────────────────────────────────────────────────
   useEffect(() => {
-    if (mode !== 'hud' && mode !== 'chat') return;
+    if (mode !== 'main') return;
     window.jarvis?.googleStatus?.().then(g => {
       setStatusMap(s => ({ ...s, gmail: g.authenticated, calendar: g.authenticated }));
     }).catch(() => {});
   }, [mode]);
 
-  // ── License paywall listener ───────────────────────────────────────────────
+  // ── Paywall listener ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!window.jarvis) return;
-    window.jarvis.onPaywall((status) => {
-      setLicenseStatus(status);
-      setShowPaywall(true);
-    });
+    window.jarvis.onPaywall((status) => { setLicenseStatus(status); setShowPaywall(true); });
     return () => window.jarvis.offPaywall?.();
   }, []);
-
-  // ── Mode + window resize ───────────────────────────────────────────────────
-  function openChat() {
-    setMode('chat');
-    window.jarvis?.setWindowMode?.('chat');
-  }
-  function closeToHUD() {
-    setMode('hud');
-    window.jarvis?.setWindowMode?.('hud');
-  }
 
   // ── Toggles ────────────────────────────────────────────────────────────────
   function toggleTTS(val) {
@@ -108,8 +91,8 @@ export default function App() {
   const handleWakeDetected = useCallback(() => {
     setWakeFlash(true);
     setTimeout(() => setWakeFlash(false), 600);
-    openChat();
-  }, []); // eslint-disable-line
+    chatInputRef.current?.focus();
+  }, []);
 
   async function handlePaywallActivated() {
     const status = await window.jarvis.licenseStatus().catch(() => null);
@@ -117,77 +100,93 @@ export default function App() {
     setShowPaywall(false);
   }
 
-  // ── Loading spinner ────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (mode === 'loading') {
     return (
-      <div className="w-[380px] h-[600px] flex items-center justify-center" style={{ background: 'transparent' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-[#6366F1] border-t-transparent animate-spin" />
+      <div style={{ width: W, height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid #6366F1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
-  // ── Auth screen ────────────────────────────────────────────────────────────
+  // ── Auth ───────────────────────────────────────────────────────────────────
   if (mode === 'auth') {
     return (
-      <div className="relative w-[380px] h-[600px]" style={{ background: 'transparent' }}>
+      <div style={{ width: W, height: H, background: '#000011', borderRadius: 20, overflow: 'hidden' }}>
         <AuthScreen onAuthenticated={(sess) => { setSession(sess); startLoggedIn(); }} />
       </div>
     );
   }
 
-  const isHUD = mode === 'hud';
-
+  // ── Main: combined HUD + Chat ──────────────────────────────────────────────
   return (
-    <div
-      className="relative overflow-hidden transition-all duration-500"
-      style={{
-        width:      isHUD ? 300 : 380,
-        height:     isHUD ? 300 : 600,
-        background: 'transparent',
-      }}
-    >
+    <div style={{
+      position: 'relative',
+      width: W, height: H,
+      background: 'linear-gradient(160deg, #080810 0%, #050508 100%)',
+      borderRadius: 20,
+      overflow: 'hidden',
+      boxShadow: '0 0 0 1px rgba(99,102,241,0.15), 0 40px 120px rgba(0,0,0,0.95), 0 0 80px rgba(99,102,241,0.06)',
+    }}>
       <WakeWord enabled={wakeWordOn} onDetected={handleWakeDetected} />
 
-      {/* HUD */}
-      <HUD
-        visible={isHUD}
-        onOpenChat={openChat}
-        statusMap={statusMap}
-      />
+      {/* ── HUD section ─────────────────────────────────────────────── */}
+      <div style={{
+        height: HUD_H,
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        // Subtle radial glow behind HUD
+        background: 'radial-gradient(ellipse 600px 320px at 50% 50%, rgba(99,102,241,0.06) 0%, transparent 70%)',
+      }}>
+        <HUD
+          statusMap={statusMap}
+          onFocusChat={() => chatInputRef.current?.focus()}
+        />
+      </div>
 
-      {/* Chat */}
-      {!isHUD && (
-        <div className="absolute inset-0 animate-chat-slide-up">
-          <Chat
+      {/* ── Divider ─────────────────────────────────────────────────── */}
+      <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.25) 20%, rgba(0,212,255,0.15) 50%, rgba(99,102,241,0.25) 80%, transparent)' }} />
+
+      {/* ── Chat section ────────────────────────────────────────────── */}
+      <div style={{ height: CHAT_H, overflow: 'hidden' }}>
+        <Chat
+          ttsOn={ttsOn}
+          onToggleTTS={toggleTTS}
+          onOpenSettings={() => setShowSettings(true)}
+          wakeFlash={wakeFlash}
+          licenseStatus={licenseStatus}
+          onOpenPaywall={() => setShowPaywall(true)}
+          inputRef={chatInputRef}
+          width={W}
+          height={CHAT_H}
+        />
+      </div>
+
+      {/* ── Settings overlay ────────────────────────────────────────── */}
+      {showSettings && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
+          <Settings
+            onClose={() => setShowSettings(false)}
             ttsOn={ttsOn}
             onToggleTTS={toggleTTS}
-            onOpenSettings={() => setShowSettings(true)}
-            wakeFlash={wakeFlash}
-            licenseStatus={licenseStatus}
-            onOpenPaywall={() => setShowPaywall(true)}
-            onClose={closeToHUD}
+            wakeWordOn={wakeWordOn}
+            onToggleWakeWord={toggleWakeWord}
           />
         </div>
       )}
 
-      {/* Settings */}
-      {showSettings && (
-        <Settings
-          onClose={() => setShowSettings(false)}
-          ttsOn={ttsOn}
-          onToggleTTS={toggleTTS}
-          wakeWordOn={wakeWordOn}
-          onToggleWakeWord={toggleWakeWord}
-        />
-      )}
-
-      {/* Paywall */}
+      {/* ── Paywall overlay ─────────────────────────────────────────── */}
       {showPaywall && (
-        <Paywall
-          licenseStatus={licenseStatus}
-          onActivated={handlePaywallActivated}
-          onContinueFree={() => setShowPaywall(false)}
-        />
+        <div style={{ position: 'absolute', inset: 0, zIndex: 50 }}>
+          <Paywall
+            licenseStatus={licenseStatus}
+            onActivated={handlePaywallActivated}
+            onContinueFree={() => setShowPaywall(false)}
+          />
+        </div>
       )}
     </div>
   );

@@ -45,7 +45,7 @@ function Message({ msg }) {
         </div>
       )}
       <div style={{
-        maxWidth: '78%',
+        maxWidth: '60%',
         padding: '10px 14px',
         borderRadius: isUser ? '18px 18px 4px 18px' : '4px 18px 18px 18px',
         fontSize: 13,
@@ -193,7 +193,7 @@ function Clock() {
 
 // ── Main Chat ──────────────────────────────────────────────────────────────
 
-export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
+export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose, inputRef: externalInputRef, width = 380, height = 600 }) {
   const [messages,    setMessages]    = useState(WELCOME);
   const [input,       setInput]       = useState('');
   const [busy,        setBusy]        = useState(false);
@@ -205,7 +205,7 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
   const [inputFocused, setInputFocused] = useState(false);
 
   const bottomRef     = useRef(null);
-  const inputRef      = useRef(null);
+  const inputRef      = externalInputRef || useRef(null); // eslint-disable-line
   const streamTextRef = useRef('');
   const ttsOnRef      = useRef(ttsOn);
   const audioRef      = useRef(null);
@@ -321,12 +321,9 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      width: 380, height: 600,
-      borderRadius: 20,
+      width, height,
       overflow: 'hidden',
-      background: 'linear-gradient(160deg, rgba(10,10,20,0.97) 0%, rgba(6,6,14,0.98) 100%)',
-      boxShadow: '0 0 0 1px rgba(99,102,241,0.18), 0 0 0 1px rgba(0,212,255,0.06), 0 24px 80px rgba(0,0,0,0.9), 0 0 60px rgba(99,102,241,0.08), 0 0 40px rgba(0,212,255,0.04)',
-      backdropFilter: 'blur(40px)',
+      background: 'transparent',
     }}>
 
       {/* ── Header ─────────────────────────────────────────────────────── */}

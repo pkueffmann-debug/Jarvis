@@ -296,7 +296,7 @@ if (urlEmail) document.getElementById('email-input').value = urlEmail;
 
 // Stripe setup
 // Replace with your actual publishable key
-const STRIPE_KEY = 'pk_live_REPLACE_WITH_YOUR_KEY';
+const STRIPE_KEY = 'pk_live_51TVJep2aCFNH4yEPYoE1WmGE99NIW0asrAnMCxMtRt91yemtv3sLgNonS7Y7KbGZfBOqbDMWyW9DIW7TNX4etgLK00YMPgqjYg';
 let stripe, cardElement;
 
 try {
@@ -324,43 +324,31 @@ try {
 document.getElementById('pay-btn').addEventListener('click', async () => {
   const email = document.getElementById('email-input').value.trim();
   if (!email) { showError('Bitte E-Mail eingeben.'); return; }
-  if (!stripe || !cardElement) { showError('Stripe nicht verfügbar.'); return; }
 
   const btn = document.getElementById('pay-btn');
   btn.disabled = true;
-  btn.textContent = 'Wird verarbeitet…';
+  btn.textContent = 'Weiterleitung zu Stripe…';
   hideError();
 
   try {
-    // 1. Create payment intent on backend
-    const plan = PLANS[activePlan];
-    const resp = await fetch('/create-payment-intent', {
+    // Redirect to Stripe Checkout (handled by website/server.js)
+    const yearly = window._jarvisYearly || false;
+    const resp = await fetch('/create-checkout-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan: activePlan, email }),
+      body: JSON.stringify({ plan: activePlan, yearly, email }),
     });
-    const { clientSecret, error: serverError } = await resp.json();
-    if (serverError) throw new Error(serverError);
-
-    // 2. Confirm card payment
-    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: { card: cardElement, billing_details: { email } }
-    });
-    if (error) throw new Error(error.message);
-
-    // 3. Get license key from backend
-    const verifyResp = await fetch('/confirm-payment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentIntentId: paymentIntent.id, email }),
-    });
-    const { licenseKey } = await verifyResp.json();
-
-    showSuccess(licenseKey || 'JARVIS-XXXX-XXXX-XXXX');
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error('Keine Checkout-URL erhalten.');
+    }
   } catch(err) {
     showError(err.message);
     btn.disabled = false;
-    btn.textContent = `${PLANS[activePlan].name} kaufen – ${PLANS[activePlan].price}${PLANS[activePlan].period}`;
+    btn.textContent = `${PLANS[activePlan].name} kaufen`;
   }
 });
 

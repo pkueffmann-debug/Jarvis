@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JARVIS — Lizenz kaufen</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://js.stripe.com/v3/"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #000;
@@ -36,85 +35,144 @@
     }
     .logo span { color: var(--accent); }
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      width: 100%; max-width: 860px;
-      display: grid; grid-template-columns: 1fr 1fr;
-      overflow: hidden;
+    /* Billing toggle */
+    .billing-toggle {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 32px;
+    }
+    .billing-label {
+      font-size: 14px; font-weight: 500; color: var(--text-2);
+      transition: color 0.2s; cursor: pointer;
+    }
+    .billing-label.active { color: var(--text); }
+    .toggle-track {
+      width: 44px; height: 24px; border-radius: 99px;
+      background: #27272a; cursor: pointer;
+      position: relative; transition: background 0.2s;
+      border: none; outline: none;
+    }
+    .toggle-track.on { background: var(--accent); }
+    .toggle-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; transition: transform 0.2s;
+    }
+    .toggle-track.on .toggle-thumb { transform: translateX(20px); }
+    .save-badge {
+      font-size: 11px; font-weight: 600; color: #4ade80;
+      background: rgba(74,222,128,0.1);
+      border: 1px solid rgba(74,222,128,0.25);
+      border-radius: 99px; padding: 2px 8px;
     }
 
-    /* LEFT — plan summary */
-    .plan-side {
-      padding: 40px 36px;
-      border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 24px;
+    /* Plans grid */
+    .plans {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px; width: 100%; max-width: 860px;
+      margin-bottom: 32px;
     }
-    .plan-tabs {
-      display: flex; gap: 8px;
+    @media (max-width: 700px) {
+      .plans { grid-template-columns: 1fr; }
     }
-    .plan-tab {
-      flex: 1; padding: 9px 0; border-radius: 8px;
+
+    .plan-card {
+      background: var(--surface);
       border: 1px solid var(--border);
-      background: transparent; color: var(--text-2);
-      font-size: 13px; font-weight: 600; cursor: pointer;
-      transition: all 0.2s;
+      border-radius: 16px; padding: 28px 24px;
+      display: flex; flex-direction: column; gap: 16px;
+      position: relative; transition: border-color 0.2s;
+      cursor: pointer;
     }
-    .plan-tab.active {
-      background: var(--accent); border-color: var(--accent); color: #fff;
+    .plan-card:hover { border-color: rgba(99,102,241,0.4); }
+    .plan-card.selected {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.05);
     }
+    .plan-card.popular {
+      border-color: var(--accent);
+    }
+
+    .popular-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+      padding: 3px 12px; border-radius: 99px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+
     .plan-name {
-      font-size: 22px; font-weight: 700;
+      font-size: 13px; font-weight: 600; color: var(--text-2);
+      text-transform: uppercase; letter-spacing: 0.08em;
     }
     .plan-price {
-      font-size: 42px; font-weight: 800; line-height: 1;
+      display: flex; align-items: baseline; gap: 3px;
     }
-    .plan-price span { font-size: 16px; font-weight: 400; color: var(--text-2); }
-    .plan-desc { font-size: 14px; color: var(--text-2); line-height: 1.6; }
-    .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .plan-price .amount {
+      font-size: 38px; font-weight: 800; line-height: 1; color: var(--text);
+    }
+    .plan-price .period {
+      font-size: 14px; color: var(--text-2); font-weight: 400;
+    }
+    .plan-yearly-note {
+      font-size: 12px; color: var(--text-2); margin-top: -8px;
+    }
+    .plan-features {
+      list-style: none; display: flex; flex-direction: column; gap: 8px;
+      flex: 1;
+    }
     .plan-features li {
-      font-size: 14px; color: var(--text-2);
-      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: var(--text-2);
+      display: flex; align-items: center; gap: 8px;
     }
     .plan-features li::before {
       content: '';
-      display: inline-block; width: 16px; height: 16px; flex-shrink: 0;
+      display: inline-block; width: 14px; height: 14px; flex-shrink: 0;
       background: var(--green);
       mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13.5 3.5L6 11 2.5 7.5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
       -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13.5 3.5L6 11 2.5 7.5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
       mask-size: contain; -webkit-mask-size: contain;
       mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat;
     }
-    .badge {
-      display: inline-flex; align-items: center;
-      padding: 4px 10px; border-radius: 99px;
-      font-size: 11px; font-weight: 600;
-      background: rgba(99,102,241,0.15); color: var(--accent);
-      border: 1px solid rgba(99,102,241,0.3);
-    }
 
-    /* RIGHT — checkout form */
-    .checkout-side {
-      padding: 40px 36px;
-      display: flex; flex-direction: column; gap: 20px;
+    .plan-select-btn {
+      width: 100%; padding: 11px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-2);
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; font-family: inherit;
     }
-    .checkout-side h2 { font-size: 18px; font-weight: 700; }
+    .plan-card.selected .plan-select-btn,
+    .plan-card.popular .plan-select-btn {
+      background: var(--accent); border-color: var(--accent); color: #fff;
+    }
+    .plan-card:hover .plan-select-btn { border-color: var(--accent); color: var(--text); }
+
+    /* Checkout section */
+    .checkout-box {
+      width: 100%; max-width: 420px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px 24px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .checkout-box h2 { font-size: 18px; font-weight: 700; }
+    .checkout-summary {
+      background: var(--surface-2); border-radius: 8px;
+      padding: 12px 14px; font-size: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .checkout-summary .plan-label { color: var(--text-2); }
+    .checkout-summary .plan-total { font-weight: 700; color: var(--text); }
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-group label { font-size: 13px; font-weight: 500; color: var(--text-2); }
     .form-group input {
       background: var(--surface-2); border: 1px solid var(--border);
       border-radius: 8px; padding: 10px 14px;
       color: var(--text); font-size: 14px; font-family: inherit;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s; width: 100%;
     }
     .form-group input:focus { outline: none; border-color: var(--accent); }
-    #card-element {
-      background: var(--surface-2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 11px 14px;
-      transition: border-color 0.2s;
-    }
-    #card-element.StripeElement--focus { border-color: var(--accent); }
+
     .btn-pay {
       width: 100%; padding: 13px;
       background: var(--accent); border: none; border-radius: 8px;
@@ -124,104 +182,113 @@
     }
     .btn-pay:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-pay:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .error-msg {
-      font-size: 13px; color: #f87171;
-      display: none;
+      font-size: 13px; color: #f87171; text-align: center;
+      background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 8px; padding: 10px 14px; display: none;
     }
     .secure-note {
       font-size: 12px; color: var(--text-2); text-align: center;
       display: flex; align-items: center; justify-content: center; gap: 6px;
     }
     .divider { height: 1px; background: var(--border); }
-
-    /* Success state */
-    .success-box {
-      display: none;
-      flex-direction: column; align-items: center;
-      gap: 16px; text-align: center; padding: 20px 0;
-    }
-    .success-icon {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: rgba(34,197,94,0.15);
-      display: flex; align-items: center; justify-content: center;
-    }
-    .success-icon svg { stroke: var(--green); }
-    .license-key {
-      font-family: 'Courier New', monospace;
-      font-size: 15px; font-weight: 700;
-      background: var(--surface-2); border: 1px solid var(--border);
-      border-radius: 8px; padding: 12px 20px;
-      letter-spacing: 0.05em; color: var(--text);
-      cursor: pointer; transition: border-color 0.2s;
-    }
-    .license-key:hover { border-color: var(--accent); }
-    .copy-hint { font-size: 12px; color: var(--text-2); }
-
-    @media (max-width: 700px) {
-      .card { grid-template-columns: 1fr; }
-      .plan-side { border-right: none; border-bottom: 1px solid var(--border); }
-    }
   </style>
 </head>
 <body>
   <a class="logo" href="/">JAR<span>VIS</span></a>
 
-  <div class="card">
-    <!-- LEFT: plan summary -->
-    <div class="plan-side">
-      <div class="plan-tabs">
-        <button class="plan-tab active" data-plan="pro">Pro</button>
-        <button class="plan-tab" data-plan="team">Team</button>
-        <button class="plan-tab" data-plan="enterprise">Enterprise</button>
-      </div>
+  <!-- Billing toggle -->
+  <div class="billing-toggle">
+    <span class="billing-label active" id="label-monthly">Monatlich</span>
+    <button class="toggle-track" id="billing-toggle" onclick="toggleBilling()">
+      <span class="toggle-thumb"></span>
+    </button>
+    <span class="billing-label" id="label-yearly">Jährlich</span>
+    <span class="save-badge">−17%</span>
+  </div>
 
-      <div id="plan-info">
-        <!-- filled by JS -->
+  <!-- Plan cards -->
+  <div class="plans">
+    <div class="plan-card" id="card-pro" onclick="selectPlan('pro')">
+      <div class="plan-name">Pro</div>
+      <div class="plan-price">
+        <span class="amount" id="price-pro">€49</span>
+        <span class="period">/ Monat</span>
       </div>
+      <p class="plan-yearly-note" id="note-pro" style="display:none">bei jährlicher Zahlung</p>
+      <ul class="plan-features">
+        <li>Unbegrenzte Nachrichten</li>
+        <li>Alle Integrationen</li>
+        <li>Sprachsteuerung &amp; Wake Word</li>
+        <li>Proaktive Briefings</li>
+        <li>1 Nutzer</li>
+      </ul>
+      <button class="plan-select-btn">Pro wählen</button>
     </div>
 
-    <!-- RIGHT: checkout -->
-    <div class="checkout-side">
-      <h2>Jetzt kaufen</h2>
-
-      <div id="checkout-form">
-        <div style="display:flex; flex-direction:column; gap:16px;">
-          <div class="form-group">
-            <label>E-Mail</label>
-            <input type="email" id="email-input" placeholder="du@beispiel.de" autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label>Kreditkarte</label>
-            <div id="card-element"></div>
-          </div>
-          <div class="error-msg" id="error-msg"></div>
-          <div class="divider"></div>
-          <button class="btn-pay" id="pay-btn">Jetzt kaufen</button>
-          <p class="secure-note">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="7" width="12" height="8" rx="2" stroke="#71717A" stroke-width="1.5"/>
-              <path d="M5 7V5a3 3 0 016 0v2" stroke="#71717A" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            Gesichert durch Stripe. Keine Kreditkartendaten gespeichert.
-          </p>
-        </div>
+    <div class="plan-card popular selected" id="card-team" onclick="selectPlan('team')">
+      <span class="popular-badge">Beliebt</span>
+      <div class="plan-name">Team</div>
+      <div class="plan-price">
+        <span class="amount" id="price-team">€149</span>
+        <span class="period">/ Monat</span>
       </div>
-
-      <div class="success-box" id="success-box">
-        <div class="success-icon">
-          <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke-width="2.5">
-            <path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div>
-          <p style="font-size:17px; font-weight:700; margin-bottom:6px;">Zahlung erfolgreich</p>
-          <p style="font-size:14px; color:#A1A1AA;">Dein Lizenzschlüssel:</p>
-        </div>
-        <div class="license-key" id="license-key-display" title="Klicken zum Kopieren"></div>
-        <p class="copy-hint">Klicke zum Kopieren · Der Schlüssel wird auch per E-Mail gesendet</p>
-        <a href="/" style="font-size:14px; color:#A1A1AA; margin-top:8px;">← Zurück zur Startseite</a>
-      </div>
+      <p class="plan-yearly-note" id="note-team" style="display:none">bei jährlicher Zahlung</p>
+      <ul class="plan-features">
+        <li>Alles aus Pro</li>
+        <li>Bis zu 10 Nutzer</li>
+        <li>Zentrale Lizenzverwaltung</li>
+        <li>Team-Support</li>
+      </ul>
+      <button class="plan-select-btn">Team wählen</button>
     </div>
+
+    <div class="plan-card" id="card-enterprise" onclick="selectPlan('enterprise')">
+      <div class="plan-name">Enterprise</div>
+      <div class="plan-price">
+        <span class="amount" id="price-enterprise">€399</span>
+        <span class="period">/ Monat</span>
+      </div>
+      <p class="plan-yearly-note" id="note-enterprise" style="display:none">bei jährlicher Zahlung</p>
+      <ul class="plan-features">
+        <li>Alles aus Team</li>
+        <li>Unbegrenzte Nutzer</li>
+        <li>Custom Integrationen</li>
+        <li>Dedicated Support &amp; SLA</li>
+      </ul>
+      <button class="plan-select-btn">Enterprise wählen</button>
+    </div>
+  </div>
+
+  <!-- Checkout -->
+  <div class="checkout-box">
+    <h2>Weiter zu Stripe</h2>
+
+    <div class="checkout-summary">
+      <span class="plan-label" id="summary-label">Team Plan</span>
+      <span class="plan-total" id="summary-price">€149 / Monat</span>
+    </div>
+
+    <div class="form-group">
+      <label>E-Mail für Lizenzkey</label>
+      <input type="email" id="email-input" placeholder="du@beispiel.de" autocomplete="email">
+    </div>
+
+    <div class="error-msg" id="error-msg"></div>
+    <div class="divider"></div>
+
+    <button class="btn-pay" id="pay-btn" onclick="startCheckout()">
+      Jetzt kaufen → Stripe
+    </button>
+
+    <p class="secure-note">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="7" width="12" height="8" rx="2" stroke="#71717A" stroke-width="1.5"/>
+        <path d="M5 7V5a3 3 0 016 0v2" stroke="#71717A" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Gesichert durch Stripe · 7 Tage kostenlos testen
+    </p>
   </div>
 
   <p style="margin-top:24px; font-size:13px; color:#52525B;">
@@ -230,100 +297,52 @@
   </p>
 
 <script>
-const PLANS = {
-  pro: {
-    name: 'Pro',
-    price: '€49',
-    period: '/Monat',
-    desc: 'Für einen Nutzer. Alle Funktionen freigeschaltet.',
-    features: ['Unbegrenzte Nachrichten', 'Alle 50+ Integrationen', 'Sprachsteuerung', 'Wake Word', 'Proaktive Briefings', 'E-Mail & Kalender Zugriff', 'Prioritäts-Support'],
-    badge: '1 Nutzer',
-    priceId: 'price_pro_placeholder',
-  },
-  team: {
-    name: 'Team',
-    price: '€199',
-    period: '/Monat',
-    desc: 'Bis zu 10 Nutzer. Gemeinsame Lizenz für Teams.',
-    features: ['Alles aus Pro', 'Bis zu 10 Nutzer', 'Zentrales Lizenzmanagement', 'Team-Support'],
-    badge: '10 Nutzer',
-    priceId: 'price_team_placeholder',
-  },
-  enterprise: {
-    name: 'Enterprise',
-    price: '€499',
-    period: '/Monat',
-    desc: 'Unbegrenzte Nutzer. Individuelles Onboarding.',
-    features: ['Alles aus Team', 'Unbegrenzte Nutzer', 'Custom Integrationen', 'Dedicated Support', 'SLA Garantie'],
-    badge: 'Unbegrenzt',
-    priceId: 'price_enterprise_placeholder',
-  },
+const PRICES = {
+  pro:        { monthly: 49,  yearly: 41  },
+  team:       { monthly: 149, yearly: 124 },
+  enterprise: { monthly: 399, yearly: 332 },
 };
 
-let activePlan = 'pro';
+let activePlan = 'team';
+let yearly     = false;
 
-function renderPlan(planKey) {
-  const p = PLANS[planKey];
-  document.getElementById('plan-info').innerHTML = `
-    <div style="display:flex; align-items:center; gap:10px;">
-      <span class="plan-name">${p.name}</span>
-      <span class="badge">${p.badge}</span>
-    </div>
-    <div class="plan-price">${p.price}<span>${p.period}</span></div>
-    <p class="plan-desc">${p.desc}</p>
-    <ul class="plan-features">
-      ${p.features.map(f => `<li>${f}</li>`).join('')}
-    </ul>
-  `;
-  const payBtn = document.getElementById('pay-btn');
-  if (payBtn) payBtn.textContent = `${p.name} kaufen – ${p.price}${p.period}`;
+function toggleBilling() {
+  yearly = !yearly;
+  const track = document.getElementById('billing-toggle');
+  track.classList.toggle('on', yearly);
+  document.getElementById('label-monthly').classList.toggle('active', !yearly);
+  document.getElementById('label-yearly').classList.toggle('active', yearly);
+  updatePrices();
+  updateSummary();
 }
 
-document.querySelectorAll('.plan-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.plan-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activePlan = btn.dataset.plan;
-    renderPlan(activePlan);
-  });
-});
-
-renderPlan(activePlan);
-
-// Pre-fill email from URL param (set by auth.html after login)
-const urlEmail = new URLSearchParams(window.location.search).get('email');
-if (urlEmail) document.getElementById('email-input').value = urlEmail;
-
-// Stripe setup
-// Replace with your actual publishable key
-const STRIPE_KEY = 'pk_live_51TVJep2aCFNH4yEPYoE1WmGE99NIW0asrAnMCxMtRt91yemtv3sLgNonS7Y7KbGZfBOqbDMWyW9DIW7TNX4etgLK00YMPgqjYg';
-let stripe, cardElement;
-
-try {
-  stripe = Stripe(STRIPE_KEY);
-  const elements = stripe.elements({
-    appearance: {
-      theme: 'night',
-      variables: {
-        colorBackground: '#111111',
-        colorText: '#ffffff',
-        colorTextPlaceholder: '#71717a',
-        borderRadius: '8px',
-        fontFamily: 'Inter, -apple-system, sans-serif',
-      }
-    }
-  });
-  cardElement = elements.create('card', { hidePostalCode: true });
-  cardElement.mount('#card-element');
-} catch(e) {
-  // If Stripe key not set, show redirect fallback
-  document.getElementById('card-element').innerHTML =
-    '<p style="font-size:13px; color:#A1A1AA;">Stripe nicht konfiguriert. Bitte STRIPE_KEY setzen.</p>';
+function updatePrices() {
+  for (const [plan, p] of Object.entries(PRICES)) {
+    const price = yearly ? p.yearly : p.monthly;
+    document.getElementById('price-' + plan).textContent = '€' + price;
+    document.getElementById('note-' + plan).style.display = yearly ? 'block' : 'none';
+  }
 }
 
-document.getElementById('pay-btn').addEventListener('click', async () => {
+function selectPlan(plan) {
+  activePlan = plan;
+  document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('card-' + plan).classList.add('selected');
+  updateSummary();
+}
+
+function updateSummary() {
+  const names = { pro: 'Pro Plan', team: 'Team Plan', enterprise: 'Enterprise Plan' };
+  const price = yearly ? PRICES[activePlan].yearly : PRICES[activePlan].monthly;
+  const period = yearly ? 'Monat (jährlich)' : 'Monat';
+  document.getElementById('summary-label').textContent = names[activePlan];
+  document.getElementById('summary-price').textContent = `€${price} / ${period}`;
+  document.getElementById('pay-btn').textContent = `${names[activePlan]} kaufen → Stripe`;
+}
+
+async function startCheckout() {
   const email = document.getElementById('email-input').value.trim();
-  if (!email) { showError('Bitte E-Mail eingeben.'); return; }
+  if (!email) { showError('Bitte E-Mail-Adresse eingeben.'); return; }
 
   const btn = document.getElementById('pay-btn');
   btn.disabled = true;
@@ -331,13 +350,17 @@ document.getElementById('pay-btn').addEventListener('click', async () => {
   hideError();
 
   try {
-    // Redirect to Stripe Checkout (handled by website/server.js)
-    const yearly = window._jarvisYearly || false;
     const resp = await fetch('/create-checkout-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan: activePlan, yearly, email }),
     });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Server Fehler ${resp.status}: ${txt}`);
+    }
+
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     if (data.url) {
@@ -345,12 +368,14 @@ document.getElementById('pay-btn').addEventListener('click', async () => {
     } else {
       throw new Error('Keine Checkout-URL erhalten.');
     }
-  } catch(err) {
-    showError(err.message);
+  } catch (err) {
+    showError(err.message.includes('Failed to fetch')
+      ? 'Server nicht erreichbar. Bitte website/server.js starten.'
+      : err.message);
     btn.disabled = false;
-    btn.textContent = `${PLANS[activePlan].name} kaufen`;
+    updateSummary();
   }
-});
+}
 
 function showError(msg) {
   const el = document.getElementById('error-msg');
@@ -360,19 +385,12 @@ function showError(msg) {
 function hideError() {
   document.getElementById('error-msg').style.display = 'none';
 }
-function showSuccess(key) {
-  document.getElementById('checkout-form').style.display = 'none';
-  const box = document.getElementById('success-box');
-  box.style.display = 'flex';
-  const keyEl = document.getElementById('license-key-display');
-  keyEl.textContent = key;
-  keyEl.addEventListener('click', () => {
-    navigator.clipboard.writeText(key).then(() => {
-      keyEl.textContent = 'Kopiert!';
-      setTimeout(() => keyEl.textContent = key, 1500);
-    });
-  });
-}
+
+// Pre-fill email from auth redirect
+const urlEmail = new URLSearchParams(window.location.search).get('email');
+if (urlEmail) document.getElementById('email-input').value = urlEmail;
+
+updateSummary();
 </script>
 </body>
 </html>

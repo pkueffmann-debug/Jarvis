@@ -125,7 +125,6 @@ app.post('/create-checkout', async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
       mode:                       'subscription',
-      payment_method_types:       ['card', 'sepa_debit'],
       allow_promotion_codes:      true,
       billing_address_collection: 'auto',
       customer_email:             email || undefined,

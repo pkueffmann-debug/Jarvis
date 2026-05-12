@@ -187,9 +187,11 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   setLoading(btn, false);
 
   if (error) {
-    showMsg('login-msg', 'error', error.message);
+    const msg = error.message.toLowerCase().includes('invalid') || error.message.toLowerCase().includes('credentials')
+      ? 'E-Mail oder Passwort falsch. Falls du dich gerade registriert hast, bitte zuerst die Bestätigungs-E-Mail öffnen.'
+      : error.message;
+    showMsg('login-msg', 'error', msg);
   } else {
-    // Redirect to pricing with email pre-filled
     window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
   }
 });

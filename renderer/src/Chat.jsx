@@ -3,34 +3,84 @@ import Voice from './Voice';
 
 const WELCOME = [{
   id: 1, role: 'jarvis', streaming: false,
-  content: 'Hallo! Ich bin JARVIS — dein persönlicher KI-Assistent.\nFrag mich nach Emails, Terminen, Dateien oder einfach was du brauchst. 🚀',
+  content: 'Hallo! Ich bin JARVIS — dein persönlicher KI-Assistent.\nFrag mich nach Emails, Terminen, Dateien oder einfach was du brauchst.',
 }];
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── Arc Reactor pulse logo ─────────────────────────────────────────────────
 
-function Avatar() {
+function ArcReactor({ size = 28, glow = false }) {
   return (
-    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white mr-2 mt-0.5 shrink-0"
-         style={{ background:'linear-gradient(135deg,#6366F1 0%,#818CF8 100%)' }}>J</div>
+    <div style={{
+      width: size, height: size,
+      borderRadius: '50%',
+      background: 'radial-gradient(circle at 40% 35%, rgba(0,212,255,0.25) 0%, rgba(99,102,241,0.35) 50%, rgba(10,10,20,0.9) 100%)',
+      border: `1px solid ${glow ? 'rgba(0,212,255,0.7)' : 'rgba(99,102,241,0.55)'}`,
+      boxShadow: glow
+        ? '0 0 12px rgba(0,212,255,0.5), 0 0 24px rgba(0,212,255,0.2), inset 0 0 8px rgba(0,212,255,0.15)'
+        : '0 0 8px rgba(99,102,241,0.35), inset 0 0 6px rgba(99,102,241,0.1)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+      animation: 'arc-pulse 2.8s ease-in-out infinite',
+    }}>
+      <span style={{
+        fontSize: size * 0.38, fontWeight: 900, letterSpacing: 0,
+        background: 'linear-gradient(135deg, #00D4FF 0%, #818CF8 100%)',
+        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        filter: 'drop-shadow(0 0 4px rgba(0,212,255,0.6))',
+      }}>J</span>
+    </div>
   );
 }
 
+// ── Message bubble ─────────────────────────────────────────────────────────
+
 function Message({ msg }) {
-  const isUser = msg.role === 'user';
+  const isUser     = msg.role === 'user';
   const isProactive = msg.proactive;
   return (
     <div className={`flex animate-msg-in mb-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      {!isUser && <Avatar />}
-      <div className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
-        isUser
-          ? 'bg-white text-[#0A0A0F] rounded-br-sm font-medium'
-          : isProactive
-            ? 'bg-[#1A1A26] text-white border border-[rgba(16,185,129,0.35)] rounded-bl-sm'
-            : 'bg-[#1A1A26] text-white border border-[rgba(99,102,241,0.25)] rounded-bl-sm'
-      }`}>
-        {isProactive && <span className="text-[10px] text-success/70 font-semibold uppercase tracking-wider block mb-1">Proaktiv</span>}
+      {!isUser && (
+        <div className="mr-2 mt-0.5 shrink-0">
+          <ArcReactor size={22} />
+        </div>
+      )}
+      <div style={{
+        maxWidth: '78%',
+        padding: '10px 14px',
+        borderRadius: isUser ? '18px 18px 4px 18px' : '4px 18px 18px 18px',
+        fontSize: 13,
+        lineHeight: 1.55,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        ...(isUser ? {
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(0,212,255,0.2) 100%)',
+          border: '1px solid rgba(99,102,241,0.4)',
+          color: '#fff',
+          boxShadow: '0 2px 12px rgba(99,102,241,0.2), inset 0 1px 0 rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(12px)',
+        } : isProactive ? {
+          background: 'rgba(16,185,129,0.07)',
+          border: '1px solid rgba(16,185,129,0.3)',
+          color: 'rgba(255,255,255,0.9)',
+          boxShadow: '0 2px 12px rgba(16,185,129,0.1)',
+          backdropFilter: 'blur(12px)',
+        } : {
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(99,102,241,0.18)',
+          color: 'rgba(255,255,255,0.88)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(12px)',
+        }),
+      }}>
+        {isProactive && (
+          <span style={{ display: 'block', fontSize: 9, color: 'rgba(16,185,129,0.7)', fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 4 }}>
+            Proaktiv
+          </span>
+        )}
         {msg.content}
-        {msg.streaming && <span className="inline-block w-[2px] h-[14px] bg-[#818CF8] ml-0.5 align-middle animate-blink" />}
+        {msg.streaming && (
+          <span style={{ display: 'inline-block', width: 2, height: 13, background: '#00D4FF', marginLeft: 3, verticalAlign: 'middle', borderRadius: 1, animation: 'blink 1s step-end infinite' }} />
+        )}
       </div>
     </div>
   );
@@ -39,11 +89,20 @@ function Message({ msg }) {
 function TypingDots() {
   return (
     <div className="flex items-center mb-3">
-      <Avatar />
-      <div className="bg-[#1A1A26] border border-[rgba(99,102,241,0.25)] rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1 items-center">
-        <span className="w-1.5 h-1.5 rounded-full bg-subtext animate-typing-1 block"/>
-        <span className="w-1.5 h-1.5 rounded-full bg-subtext animate-typing-2 block"/>
-        <span className="w-1.5 h-1.5 rounded-full bg-subtext animate-typing-3 block"/>
+      <div className="mr-2 shrink-0"><ArcReactor size={22} /></div>
+      <div style={{
+        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.18)',
+        borderRadius: '4px 18px 18px 18px', padding: '10px 16px',
+        display: 'flex', gap: 5, alignItems: 'center', backdropFilter: 'blur(12px)',
+      }}>
+        {[0, 1, 2].map(i => (
+          <span key={i} style={{
+            width: 5, height: 5, borderRadius: '50%',
+            background: 'rgba(0,212,255,0.6)',
+            display: 'block',
+            animation: `typing-dot 1.4s ease-in-out ${i * 0.16}s infinite`,
+          }} />
+        ))}
       </div>
     </div>
   );
@@ -52,35 +111,47 @@ function TypingDots() {
 function ToolBadge({ status }) {
   if (!status) return null;
   return (
-    <div className="flex items-center gap-2 mx-8 mb-3 px-3 py-1.5 rounded-lg animate-msg-in"
-         style={{ background:'rgba(99,102,241,0.1)', border:'1px solid rgba(99,102,241,0.2)' }}>
-      <div className="w-3 h-3 rounded-full border-2 border-[#6366F1] border-t-transparent animate-spin shrink-0"/>
-      <span className="text-[#818CF8] text-xs">{status}</span>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      margin: '0 8px 12px', padding: '8px 14px',
+      background: 'rgba(99,102,241,0.08)',
+      border: '1px solid rgba(99,102,241,0.18)',
+      borderRadius: 10, backdropFilter: 'blur(8px)',
+    }} className="animate-msg-in">
+      <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #6366F1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+      <span style={{ color: '#818CF8', fontSize: 11 }}>{status}</span>
     </div>
   );
 }
 
 function ConfirmDialog({ data, onConfirm, onCancel }) {
   return (
-    <div className="mx-3 mb-2 px-4 py-3 rounded-xl animate-msg-in"
-         style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.3)' }}>
-      <p className="text-amber-400 text-[11px] font-semibold uppercase tracking-wider mb-1.5">⚠️ Bestätigung erforderlich</p>
-      <p className="text-white text-sm leading-relaxed">{data.message}</p>
+    <div style={{
+      margin: '0 12px 8px',
+      padding: '14px 16px',
+      background: 'rgba(245,158,11,0.07)',
+      border: '1px solid rgba(245,158,11,0.28)',
+      borderRadius: 14, backdropFilter: 'blur(12px)',
+    }} className="animate-msg-in">
+      <p style={{ color: '#FBBF24', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>⚠️ Bestätigung erforderlich</p>
+      <p style={{ color: 'rgba(255,255,255,0.88)', fontSize: 13, lineHeight: 1.5 }}>{data.message}</p>
       {data.detail && (
-        <code className="block mt-2 text-xs text-subtext/80 bg-black/30 rounded-lg px-3 py-2 font-mono break-all">
+        <code style={{ display: 'block', marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '6px 10px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
           {data.detail}
         </code>
       )}
-      <div className="flex gap-2 mt-3">
-        <button onClick={onConfirm}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors"
-                style={{ background:'linear-gradient(135deg,#6366F1,#818CF8)' }}>
-          ✓ Ja, ausführen
-        </button>
-        <button onClick={onCancel}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white/60 bg-white/10 hover:bg-white/15 transition-colors">
-          ✕ Abbrechen
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button onClick={onConfirm} style={{
+          padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+          color: '#fff', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(135deg, #6366F1, #00D4FF)',
+          boxShadow: '0 0 12px rgba(99,102,241,0.4)',
+        }}>✓ Ja</button>
+        <button onClick={onCancel} style={{
+          padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+          color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(255,255,255,0.06)', cursor: 'pointer',
+        }}>✕ Abbrechen</button>
       </div>
     </div>
   );
@@ -89,7 +160,7 @@ function ConfirmDialog({ data, onConfirm, onCancel }) {
 // ── Icons ──────────────────────────────────────────────────────────────────
 
 const IconSend = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
   </svg>
 );
@@ -111,28 +182,27 @@ const IconGear = () => (
   </svg>
 );
 
-// ── Clock ──────────────────────────────────────────────────────────────────
-
 function Clock() {
   const [time, setTime] = useState(() => new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }));
   useEffect(() => {
     const t = setInterval(() => setTime(new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' })), 10000);
     return () => clearInterval(t);
   }, []);
-  return <span className="text-subtext/50 text-[11px] tabular-nums">{time}</span>;
+  return <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{time}</span>;
 }
 
 // ── Main Chat ──────────────────────────────────────────────────────────────
 
 export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
-  const [messages,   setMessages]   = useState(WELCOME);
-  const [input,      setInput]      = useState('');
-  const [busy,       setBusy]       = useState(false);
-  const [streaming,  setStreaming]  = useState(false);
-  const [speaking,   setSpeaking]   = useState(false);
+  const [messages,    setMessages]    = useState(WELCOME);
+  const [input,       setInput]       = useState('');
+  const [busy,        setBusy]        = useState(false);
+  const [streaming,   setStreaming]   = useState(false);
+  const [speaking,    setSpeaking]    = useState(false);
   const [toolStatus,  setToolStatus]  = useState('');
   const [confirmData, setConfirmData] = useState(null);
   const [actionFeed,  setActionFeed]  = useState([]);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const bottomRef     = useRef(null);
   const inputRef      = useRef(null);
@@ -141,17 +211,15 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
   const audioRef      = useRef(null);
 
   useEffect(() => { ttsOnRef.current = ttsOn; }, [ttsOn]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }); }, [messages, busy, toolStatus]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, busy, toolStatus]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // Confirmation requests
   useEffect(() => {
     if (!window.jarvis) return;
     window.jarvis.onConfirm((data) => setConfirmData(data));
     return () => window.jarvis.offConfirm();
   }, []);
 
-  // Proactive messages pushed from main process
   useEffect(() => {
     if (!window.jarvis) return;
     window.jarvis.onProactiveMessage((text) => {
@@ -164,8 +232,7 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
     window.jarvis.confirmAction(confirmed);
     setConfirmData(null);
     if (!confirmed) {
-      // Surface a cancellation message
-      setMessages((p) => [...p, { id:Date.now(), role:'jarvis', content:'Abgebrochen.', streaming:false }]);
+      setMessages((p) => [...p, { id: Date.now(), role: 'jarvis', content: 'Abgebrochen.', streaming: false }]);
       setBusy(false); setStreaming(false); setToolStatus('');
       window.jarvis.offStream();
     }
@@ -191,22 +258,21 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
     setInput('');
     setBusy(true);
     streamTextRef.current = '';
-    setMessages((p) => [...p, { id:Date.now(), role:'user', content, streaming:false }]);
+    setMessages((p) => [...p, { id: Date.now(), role: 'user', content, streaming: false }]);
 
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setSpeaking(false); }
 
     if (!window.jarvis) {
-      // Browser preview
       setTimeout(() => {
         setBusy(false);
-        const id = Date.now()+1;
-        setMessages((p) => [...p, { id, role:'jarvis', content:'', streaming:true }]);
+        const id = Date.now() + 1;
+        setMessages((p) => [...p, { id, role: 'jarvis', content: '', streaming: true }]);
         setStreaming(true);
-        const words = ['Alles Phasen implementiert! 🎉 ', 'Calendar, Memory, Files, System-Tools, ', 'Settings — alles aktiv! ⚡'];
+        const words = ['Alles aktiv! ', 'Calendar, Memory, Files — ', 'alle Tools bereit. ⚡'];
         let i = 0;
         const t = setInterval(() => {
-          if (i >= words.length) { clearInterval(t); setMessages((p) => p.map((m) => m.id===id ? {...m,streaming:false} : m)); setStreaming(false); return; }
-          setMessages((p) => p.map((m) => m.id===id ? {...m, content: m.content+words[i]} : m));
+          if (i >= words.length) { clearInterval(t); setMessages((p) => p.map((m) => m.id === id ? { ...m, streaming: false } : m)); setStreaming(false); return; }
+          setMessages((p) => p.map((m) => m.id === id ? { ...m, content: m.content + words[i] } : m));
           i++;
         }, 280);
       }, 500);
@@ -216,25 +282,21 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
     window.jarvis.onToolStatus((s) => {
       setBusy(false);
       setToolStatus(s);
-      setActionFeed((prev) => {
-        const entry = { id: Date.now(), text: s };
-        return [entry, ...prev].slice(0, 5);
-      });
+      setActionFeed((prev) => [{ id: Date.now(), text: s }, ...prev].slice(0, 5));
     });
 
     window.jarvis.onChunk((chunk) => {
       streamTextRef.current += chunk;
       setBusy(false); setToolStatus(''); setStreaming(true);
       setMessages((prev) => {
-        const last = prev[prev.length-1];
-        if (last?.streaming) return prev.map((m) => m.id===last.id ? {...m, content:m.content+chunk} : m);
-        const id = Date.now();
-        return [...prev, { id, role:'jarvis', content:chunk, streaming:true }];
+        const last = prev[prev.length - 1];
+        if (last?.streaming) return prev.map((m) => m.id === last.id ? { ...m, content: m.content + chunk } : m);
+        return [...prev, { id: Date.now(), role: 'jarvis', content: chunk, streaming: true }];
       });
     });
 
     window.jarvis.onDone(({ fullText } = {}) => {
-      setMessages((p) => p.map((m) => m.streaming ? {...m,streaming:false} : m));
+      setMessages((p) => p.map((m) => m.streaming ? { ...m, streaming: false } : m));
       setStreaming(false); setBusy(false); setToolStatus('');
       window.jarvis.offStream();
       inputRef.current?.focus();
@@ -243,7 +305,7 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
 
     window.jarvis.onError((msg) => {
       setBusy(false); setStreaming(false); setToolStatus('');
-      const err = { id:Date.now(), role:'jarvis', content:`⚠️ ${msg}`, streaming:false };
+      const err = { id: Date.now(), role: 'jarvis', content: `⚠️ ${msg}`, streaming: false };
       setMessages((p) => p.some((m) => m.streaming) ? p.map((m) => m.streaming ? err : m) : [...p, err]);
       window.jarvis.offStream();
     });
@@ -251,58 +313,67 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
     window.jarvis.sendMessage(content);
   }, [input, busy, streaming]); // eslint-disable-line
 
-  const handleKey = (e) => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+  const handleKey = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
   const isDisabled = busy || streaming;
   const statusLabel = speaking ? 'Spricht…' : streaming ? 'Antwortet…' : toolStatus ? 'Arbeitet…' : 'Active';
+  const statusColor = speaking ? '#818CF8' : '#10B981';
 
   return (
-    <div className="flex flex-col w-[380px] h-[600px] rounded-2xl overflow-hidden"
-         style={{ background:'#0A0A0F', boxShadow:'0 0 0 1px rgba(99,102,241,0.2), 0 24px 64px rgba(0,0,0,0.85), 0 0 48px rgba(99,102,241,0.12)' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      width: 380, height: 600,
+      borderRadius: 20,
+      overflow: 'hidden',
+      background: 'linear-gradient(160deg, rgba(10,10,20,0.97) 0%, rgba(6,6,14,0.98) 100%)',
+      boxShadow: '0 0 0 1px rgba(99,102,241,0.18), 0 0 0 1px rgba(0,212,255,0.06), 0 24px 80px rgba(0,0,0,0.9), 0 0 60px rgba(99,102,241,0.08), 0 0 40px rgba(0,212,255,0.04)',
+      backdropFilter: 'blur(40px)',
+    }}>
 
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3.5 shrink-0"
-           style={{ background:'#0D0D15', borderBottom:'1px solid rgba(99,102,241,0.15)', WebkitAppRegion:'drag' }}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white"
-               style={{ background:'linear-gradient(135deg,#6366F1 0%,#818CF8 100%)', boxShadow:'0 0 12px rgba(99,102,241,0.4)' }}>J</div>
-          <span className="text-white font-semibold tracking-[0.12em] text-sm">JARVIS</span>
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 16px',
+        background: 'linear-gradient(90deg, rgba(99,102,241,0.06) 0%, rgba(0,212,255,0.03) 100%)',
+        borderBottom: '1px solid rgba(99,102,241,0.12)',
+        flexShrink: 0,
+        WebkitAppRegion: 'drag',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <ArcReactor size={28} glow />
+          <div>
+            <div style={{ color: '#fff', fontWeight: 700, letterSpacing: '0.12em', fontSize: 13, lineHeight: 1 }}>JARVIS</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor, boxShadow: `0 0 6px ${statusColor}`, animation: 'pulse-dot 2s ease-in-out infinite' }} />
+              <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{statusLabel}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion:'no-drag' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, WebkitAppRegion: 'no-drag' }}>
           <Clock />
-          <div className="w-px h-3 bg-white/10 mx-0.5" />
+          <div style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.08)', margin: '0 2px' }} />
 
-          {/* TTS toggle */}
-          <button onClick={() => { if(audioRef.current){audioRef.current.pause();audioRef.current=null;setSpeaking(false);} onToggleTTS(); }}
+          <button onClick={() => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; setSpeaking(false); } onToggleTTS(); }}
                   title={ttsOn ? 'Stimme an' : 'Stimme aus'}
-                  className={`w-6 h-6 rounded flex items-center justify-center transition-colors hover:text-white ${ttsOn ? 'text-[#818CF8]' : 'text-subtext/40'}`}>
+                  style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: ttsOn ? '#818CF8' : 'rgba(255,255,255,0.25)', transition: 'color 0.2s' }}>
             <IconSpeaker on={ttsOn} />
           </button>
 
-          {/* Status */}
-          <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${speaking ? 'bg-[#818CF8]' : 'bg-success'} animate-pulse-dot`}/>
-            <span className="text-subtext text-[11px] w-[58px]">{statusLabel}</span>
-          </div>
-
-          {/* Settings */}
           <button onClick={onOpenSettings}
-                  className="w-6 h-6 rounded flex items-center justify-center text-subtext hover:text-white hover:bg-white/10 transition-colors">
+                  style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)', transition: 'color 0.2s' }}>
             <IconGear />
           </button>
 
-          {/* Back to HUD / Close */}
           {onClose ? (
-            <button onClick={onClose}
-                    title="Zurück zum HUD"
-                    className="w-6 h-6 rounded flex items-center justify-center text-subtext hover:text-[#818CF8] hover:bg-white/10 transition-colors">
+            <button onClick={onClose} title="Zurück zum HUD"
+                    style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8l-4 4 4 4M16 12H8"/>
               </svg>
             </button>
           ) : (
             <button onClick={() => window.jarvis?.closeWindow()}
-                    className="w-5 h-5 rounded flex items-center justify-center text-subtext hover:text-white hover:bg-white/10 transition-colors">
+                    style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)' }}>
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
@@ -311,15 +382,15 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
         </div>
       </div>
 
-      {/* ── Messages ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2">
+      {/* ── Messages ───────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 8px' }}>
         {messages.map((m) => <Message key={m.id} msg={m} />)}
         {toolStatus && <ToolBadge status={toolStatus} />}
         {busy && !toolStatus && <TypingDots />}
         <div ref={bottomRef} />
       </div>
 
-      {/* ── Confirmation dialog ───────────────────────────────────── */}
+      {/* ── Confirmation dialog ─────────────────────────────────────────── */}
       {confirmData && (
         <ConfirmDialog
           data={confirmData}
@@ -328,46 +399,100 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose }) {
         />
       )}
 
-      {/* ── Live Action Feed ───────────────────────────────────────── */}
+      {/* ── Live Action Feed ────────────────────────────────────────────── */}
       {actionFeed.length > 0 && (
-        <div className="shrink-0 px-3 pb-1">
-          <div className="rounded-xl overflow-hidden" style={{ background:'rgba(10,10,15,0.8)', border:'1px solid rgba(99,102,241,0.12)' }}>
+        <div style={{ flexShrink: 0, padding: '0 12px 6px' }}>
+          <div style={{ borderRadius: 12, overflow: 'hidden', background: 'rgba(6,6,14,0.8)', border: '1px solid rgba(99,102,241,0.1)' }}>
             {actionFeed.map((a, i) => (
-              <div key={a.id} className={`flex items-center gap-2 px-3 py-1.5 ${i > 0 ? 'border-t border-white/5' : ''}`}
-                   style={{ opacity: 1 - i * 0.22 }}>
-                {i === 0 && <div className="w-2 h-2 rounded-full border border-[#6366F1] border-t-transparent animate-spin shrink-0" />}
-                {i > 0  && <div className="w-2 h-2 rounded-full bg-zinc-700 shrink-0" />}
-                <span className="text-[10px] text-zinc-400 truncate">{a.text}</span>
+              <div key={a.id} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 12px',
+                borderTop: i > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                opacity: 1 - i * 0.22,
+              }}>
+                {i === 0 && <div style={{ width: 7, height: 7, borderRadius: '50%', border: '1.5px solid #6366F1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
+                {i > 0  && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'rgba(99,102,241,0.25)', flexShrink: 0 }} />}
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.text}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Input ──────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-3 py-3" style={{ borderTop:'1px solid rgba(99,102,241,0.12)' }}>
-        <div className="flex items-center gap-2 rounded-xl px-3 py-2"
-             style={{ background:'#13131A', border:'1px solid rgba(99,102,241,0.2)' }}>
+      {/* ── Input ──────────────────────────────────────────────────────── */}
+      <div style={{ flexShrink: 0, padding: '10px 12px 12px', borderTop: '1px solid rgba(99,102,241,0.1)' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          borderRadius: 50,
+          padding: '8px 8px 8px 16px',
+          background: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${inputFocused ? 'rgba(0,212,255,0.45)' : 'rgba(99,102,241,0.2)'}`,
+          boxShadow: inputFocused ? '0 0 0 3px rgba(0,212,255,0.06), 0 0 20px rgba(0,212,255,0.08)' : 'none',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+          backdropFilter: 'blur(12px)',
+        }}>
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
             placeholder={isDisabled ? 'JARVIS arbeitet…' : 'Frag JARVIS etwas…'}
             disabled={isDisabled}
-            className="flex-1 bg-transparent text-white text-sm outline-none placeholder-subtext/50 disabled:opacity-60"
-            style={{ WebkitAppRegion:'no-drag' }}
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              color: '#fff', fontSize: 13,
+              WebkitAppRegion: 'no-drag',
+            }}
           />
           <Voice onTranscript={sendMessage} disabled={isDisabled} />
           <button onClick={() => sendMessage()} disabled={!input.trim() || isDisabled}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                  style={{ background: input.trim()&&!isDisabled ? 'linear-gradient(135deg,#6366F1 0%,#818CF8 100%)' : 'rgba(99,102,241,0.2)', WebkitAppRegion:'no-drag' }}>
+                  style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: 'none', cursor: input.trim() && !isDisabled ? 'pointer' : 'default',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff',
+                    background: input.trim() && !isDisabled
+                      ? 'linear-gradient(135deg, #6366F1 0%, #00D4FF 100%)'
+                      : 'rgba(99,102,241,0.15)',
+                    boxShadow: input.trim() && !isDisabled ? '0 0 12px rgba(0,212,255,0.3)' : 'none',
+                    opacity: !input.trim() || isDisabled ? 0.35 : 1,
+                    transition: 'all 0.2s',
+                    WebkitAppRegion: 'no-drag',
+                    flexShrink: 0,
+                  }}>
             <IconSend />
           </button>
         </div>
-        <p className="text-center text-subtext/40 text-[10px] mt-2">⌘⇧J öffnen · Halten = Spracheingabe</p>
+        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 10, marginTop: 8 }}>
+          ⌘⇧J öffnen · Halten = Spracheingabe
+        </p>
       </div>
+
+      {/* ── Keyframe styles (injected once) ────────────────────────────── */}
+      <style>{`
+        @keyframes arc-pulse {
+          0%, 100% { box-shadow: 0 0 8px rgba(99,102,241,0.35), inset 0 0 6px rgba(99,102,241,0.1); }
+          50%       { box-shadow: 0 0 14px rgba(0,212,255,0.45), inset 0 0 10px rgba(0,212,255,0.12); }
+        }
+        @keyframes typing-dot {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+          30%            { transform: translateY(-4px); opacity: 1; }
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes spin  { to { transform: rotate(360deg); } }
+        @keyframes pulse-dot {
+          0%,100% { opacity:1; transform:scale(1); }
+          50%     { opacity:0.6; transform:scale(0.85); }
+        }
+        @keyframes msg-in {
+          from { opacity:0; transform:translateY(6px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        .animate-msg-in { animation: msg-in 0.25s ease-out; }
+      `}</style>
     </div>
   );
 }

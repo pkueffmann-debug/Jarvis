@@ -1,4 +1,4 @@
-const { exec }  = require('child_process');
+const { exec, spawn }  = require('child_process');
 const { promisify } = require('util');
 const { shell } = require('electron');
 const fs   = require('fs');
@@ -38,7 +38,16 @@ function macOnly(name) {
 
 async function openApp({ appName }) {
   if (isDarwin) {
-    await run(`open -a "${appName.replace(/"/g, '\\"')}"`);
+    await new Promise((resolve, reject) => {
+      const child = spawn('open', ['-a', appName], { detached: true, stdio: 'ignore' });
+      child.unref();
+      child.on('error', reject);
+      // open exits immediately after launching — wait for close
+      child.on('close', (code) => {
+        if (code === 0 || code === null) resolve();
+        else reject(new Error(`open -a "${appName}" exit code ${code}`));
+      });
+    });
   } else if (isWindows) {
     await run(`start "" "${appName}"`, { shell: true });
   }

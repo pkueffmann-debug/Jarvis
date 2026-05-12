@@ -141,8 +141,8 @@ export default function App() {
     <div
       className="relative overflow-hidden transition-all duration-500"
       style={{
-        width:      isHUD ? 420 : 380,
-        height:     isHUD ? 420 : 600,
+        width:      isHUD ? 300 : 380,
+        height:     isHUD ? 300 : 600,
         background: 'transparent',
       }}
     >

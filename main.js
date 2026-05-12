@@ -408,14 +408,13 @@ ipcMain.handle('set-window-mode', (_e, mode) => {
   const pos = mainWindow.getPosition();
   if (mode === 'hud') {
     const [x, y] = pos;
-    const diff = Math.round((600 - 420) / 2);
-    mainWindow.setSize(420, 420, true);
-    mainWindow.setPosition(x, y + diff, true);
+    mainWindow.setSize(300, 300, true);
+    // Center the smaller HUD window relative to where chat was
+    mainWindow.setPosition(x + 40, y + 150, true);
   } else {
     const [x, y] = pos;
-    const diff = Math.round((600 - 420) / 2);
     mainWindow.setSize(380, 600, true);
-    mainWindow.setPosition(x, y - diff, true);
+    mainWindow.setPosition(Math.max(0, x - 40), Math.max(0, y - 150), true);
   }
   return { ok: true };
 });

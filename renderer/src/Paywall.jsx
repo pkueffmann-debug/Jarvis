@@ -2,15 +2,6 @@ import React, { useState } from 'react';
 
 const PLANS = [
   {
-    id: 'free',
-    name: 'Free',
-    monthly: '0', yearly: '0',
-    limit: '50 Nachrichten / Tag',
-    features: ['Alle Integrationen', 'Kein API-Key nötig', '50 Msg/Tag'],
-    cta: 'Kostenlos nutzen',
-    highlight: false,
-  },
-  {
     id: 'pro',
     name: 'Pro',
     monthly: '49', yearly: '41',
@@ -22,7 +13,7 @@ const PLANS = [
   {
     id: 'team',
     name: 'Team',
-    monthly: '199', yearly: '166',
+    monthly: '149', yearly: '124',
     limit: 'Unbegrenzt',
     features: ['Unbegrenzte Nachrichten', 'Alle Integrationen', 'Bis 10 Nutzer'],
     cta: 'Team starten',
@@ -31,7 +22,7 @@ const PLANS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    monthly: '499', yearly: '415',
+    monthly: '399', yearly: '332',
     limit: 'Unbegrenzt',
     features: ['Unbegrenzte Nachrichten', 'Alle Integrationen', 'Unbegrenzte Nutzer'],
     cta: 'Enterprise starten',

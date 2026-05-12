@@ -539,6 +539,9 @@
       Download for Mac — Free
       <span id="dlCount" style="margin-left:8px;opacity:0.65;font-size:11px;font-weight:500"></span>
     </a>
+    <p style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.4);line-height:1.5;">
+      macOS blockiert unbekannte Apps — einfach: <strong style="color:rgba(255,255,255,0.65);">Rechtsklick → Öffnen → Trotzdem öffnen</strong>
+    </p>
     <button class="btn btn-ghost">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       Watch Demo
@@ -784,7 +787,7 @@
         <tr>
           <td>Preis</td>
           <td class="hi" style="color:var(--accent);font-weight:700;">ab 49€/Mo</td>
-          <td style="color:var(--text)">0€</td>
+          <td>—</td>
           <td>20$/Mo</td>
           <td>30$/Mo</td>
         </tr>
@@ -808,21 +811,6 @@
       <span class="pt-badge">2 Monate gratis</span>
     </div>
     <div class="pricing-grid rv">
-      <!-- Free -->
-      <div class="price-card">
-        <p class="price-plan">Free</p>
-        <div class="price-amount"><sup>€</sup>0</div>
-        <p class="price-period">für immer kostenlos</p>
-        <p class="price-desc">Zum Ausprobieren — kein Kreditkarte nötig.</p>
-        <div class="price-divider"></div>
-        <ul class="price-features">
-          <li>50 Nachrichten pro Tag</li>
-          <li>Basis Chat</li>
-          <li>Screen Awareness</li>
-          <li>Community Support</li>
-        </ul>
-        <a href="#" class="btn btn-ghost price-btn">Kostenlos starten</a>
-      </div>
       <!-- Pro -->
       <div class="price-card pop">
         <div class="pop-badge">Most Popular</div>
@@ -844,7 +832,7 @@
       <!-- Team -->
       <div class="price-card">
         <p class="price-plan">Team</p>
-        <div class="price-amount"><sup>€</sup><span id="teamNum">199</span></div>
+        <div class="price-amount"><sup>€</sup><span id="teamNum">149</span></div>
         <p class="price-period" id="teamP">pro Monat</p>
         <p class="price-desc">Für Teams die gemeinsam produktiver werden.</p>
         <div class="price-divider"></div>
@@ -861,7 +849,7 @@
       <!-- Enterprise -->
       <div class="price-card">
         <p class="price-plan">Enterprise</p>
-        <div class="price-amount"><sup>€</sup><span id="entNum">499</span></div>
+        <div class="price-amount"><sup>€</sup><span id="entNum">399</span></div>
         <p class="price-period" id="entP">pro Monat</p>
         <p class="price-desc">Für Unternehmen mit maximalen Anforderungen.</p>
         <div class="price-divider"></div>
@@ -1193,12 +1181,12 @@ function togglePrice() {
   const tN = document.getElementById('teamNum');
   const eN = document.getElementById('entNum');
   if (yearly) {
-    pN.textContent = '41'; tN.textContent = '166'; eN.textContent = '415';
+    pN.textContent = '41'; tN.textContent = '124'; eN.textContent = '332';
     document.getElementById('proP').textContent  = 'pro Monat, jährlich';
     document.getElementById('teamP').textContent = 'pro Monat, jährlich';
     document.getElementById('entP').textContent  = 'pro Monat, jährlich';
   } else {
-    pN.textContent = '49'; tN.textContent = '199'; eN.textContent = '499';
+    pN.textContent = '49'; tN.textContent = '149'; eN.textContent = '399';
     document.getElementById('proP').textContent  = 'pro Monat';
     document.getElementById('teamP').textContent = 'pro Monat';
     document.getElementById('entP').textContent  = 'pro Monat';

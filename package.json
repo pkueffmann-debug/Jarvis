@@ -2,6 +2,7 @@
   "name": "jarvis",
   "version": "0.2.0",
   "description": "JARVIS — AI Desktop Assistant",
+  "author": "Paul Küffmann <p.kueffmann@icloud.com>",
   "main": "main.js",
   "scripts": {
     "postinstall": "node scripts/generate-icon.js",
@@ -12,6 +13,7 @@
     "dist": "npm run dist:dir && node scripts/create-dmg.js",
     "dist:dir": "npm run build && electron-builder --mac --dir --config",
     "dist:win": "npm run build && electron-builder --win --config",
+    "dist:win:portable": "npm run build && electron-builder --win portable --config",
     "dmg": "node scripts/create-dmg.js",
     "backend": "cd backend && node server.js",
     "backend:dev": "cd backend && node --watch server.js",
@@ -59,9 +61,11 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
         }
       ]
     },
@@ -70,7 +74,12 @@
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/jarvis.ico",
       "uninstallerIcon": "assets/jarvis.ico",
-      "shortcutName": "JARVIS"
+      "shortcutName": "JARVIS",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "JARVIS-Portable-${version}.exe"
     },
     "dmg": {
       "title": "JARVIS",

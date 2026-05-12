@@ -491,7 +491,16 @@
     <li><a href="#demo">Demo</a></li>
     <li><a href="#faq">FAQ</a></li>
   </ul>
-  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-outlined" style="display:flex" onclick="trackDownload()" download>Download for Mac</a>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-outlined" style="display:flex" onclick="trackDownload()" download>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Mac
+    </a>
+    <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Portable-0.2.0.exe" class="btn btn-outlined" style="display:flex" onclick="trackDownload()" download>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Windows
+    </a>
+  </div>
   <button class="hamburger" onclick="toggleNav()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
@@ -501,7 +510,8 @@
   <a href="#pricing" onclick="toggleNav()">Pricing</a>
   <a href="#demo" onclick="toggleNav()">Demo</a>
   <a href="#faq" onclick="toggleNav()">FAQ</a>
-  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-primary" onclick="toggleNav();trackDownload()" download>Download for Mac — Free</a>
+  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-primary" onclick="toggleNav();trackDownload()" download>Mac — Free</a>
+  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Portable-0.2.0.exe" class="btn btn-outlined" onclick="toggleNav();trackDownload()" download>Windows — Free</a>
 </div>
 
 <!-- Journey Line — full-page scroll-drawn spine -->
@@ -525,7 +535,7 @@
   <canvas id="hero-canvas"></canvas>
   <div class="hero-badge" id="heroBadge">
     <div class="badge-dot"></div>
-    Now available for macOS
+    Now available for macOS &amp; Windows
   </div>
   <h1 class="hero-headline" id="heroH">
     <span class="l1">Your AI.</span><br>
@@ -533,12 +543,19 @@
   </h1>
   <p class="hero-sub" id="heroSub">JARVIS läuft lokal, kennt deinen Workflow und handelt bevor du fragst.</p>
   <div class="hero-btns" id="heroBtns">
-    <a id="downloadBtn" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg"
-       class="btn btn-primary" onclick="trackDownload()" download>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Download for Mac — Free
-      <span id="dlCount" style="margin-left:8px;opacity:0.65;font-size:11px;font-weight:500"></span>
-    </a>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+      <a id="downloadBtn" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg"
+         class="btn btn-primary" onclick="trackDownload()" download>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download for Mac — Free
+        <span id="dlCount" style="margin-left:8px;opacity:0.65;font-size:11px;font-weight:500"></span>
+      </a>
+      <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Portable-0.2.0.exe"
+         class="btn btn-outlined" onclick="trackDownload()" download style="display:flex;align-items:center;gap:8px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download for Windows — Free
+      </a>
+    </div>
     <div style="margin-top:12px;padding:10px 16px;border-radius:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);max-width:360px;text-align:left;">
       <p style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.6;margin:0;">
         <span style="color:#818CF8;font-weight:600;">Nach dem Download:</span>

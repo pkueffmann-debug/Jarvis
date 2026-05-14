@@ -64,7 +64,10 @@ function pip(args) {
   const r = spawnSync(VENV_PY, ['-m', 'pip', ...args], { stdio: 'inherit' });
   if (r.status !== 0) process.exit(r.status || 1);
 }
-pip(['install', '--quiet', '--upgrade', 'pip']);
+// Skip pip self-upgrade. setup-python@v5 ships a recent pip, and self-
+// upgrading in the same process that's running pip is fragile on Windows
+// (even via `python -m pip`). We don't need a newer pip for our three
+// dependencies.
 pip(['install', '--quiet', 'openwakeword', 'pyaudio', 'pyinstaller']);
 
 // ── 4. Build with PyInstaller ───────────────────────────────────────────────

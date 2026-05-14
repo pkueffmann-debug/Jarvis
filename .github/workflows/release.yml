@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-mac:
     runs-on: macos-latest
@@ -23,7 +26,7 @@ jobs:
         run: npm run build
 
       - name: Build DMG (arm64 + x64)
-        run: npx electron-builder --mac dmg --config
+        run: npx electron-builder --mac dmg --config -p never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -54,7 +57,7 @@ jobs:
         run: npm run build
 
       - name: Build Windows NSIS Installer + Portable
-        run: npx electron-builder --win --config
+        run: npx electron-builder --win --config -p never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -132,11 +132,15 @@ async function main() {
     process.stdout.write(`  ✓ ${name}\n`);
   }
 
-  // 3. .icns via iconutil (macOS built-in)
-  const icnsPath = path.join(ASSETS, 'jarvis.icns');
-  execSync(`iconutil -c icns "${iconset}" -o "${icnsPath}"`);
+  // 3. .icns via iconutil (macOS built-in) — skip on Windows/Linux
+  if (process.platform === 'darwin') {
+    const icnsPath = path.join(ASSETS, 'jarvis.icns');
+    execSync(`iconutil -c icns "${iconset}" -o "${icnsPath}"`);
+    console.log(`✓ assets/jarvis.icns`);
+  } else {
+    console.log('… iconutil skipped (non-macOS)');
+  }
   fs.rmSync(iconset, { recursive: true, force: true });
-  console.log(`✓ assets/jarvis.icns`);
 
   // 4. 22×22 tray icon (macOS menu bar — should be @2x ready)
   const tray = createCanvas(44, 44);

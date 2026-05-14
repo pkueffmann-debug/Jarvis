@@ -124,7 +124,16 @@ function createTray() {
   tray.on('click', toggleWindow);
 }
 
-function showWindow()   { mainWindow.center(); mainWindow.show(); mainWindow.focus(); }
+function showWindow() {
+  // Only re-center when the window was hidden — otherwise we'd snap the
+  // window back to center every wake-word hit, which feels jarring if the
+  // user has moved it.
+  if (!mainWindow.isVisible()) {
+    mainWindow.center();
+    mainWindow.show();
+  }
+  mainWindow.focus();
+}
 function toggleWindow() { mainWindow.isVisible() ? mainWindow.hide() : showWindow(); }
 
 // ── Tool executor ──────────────────────────────────────────────────────────
@@ -340,10 +349,27 @@ ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 
 
 // ── IPC: Wake Word ─────────────────────────────────────────────────────────
 
+// Debounce: OWW can fire multiple detections within seconds (the internal
+// cooldown is only 2.4s, and the user often says the phrase 2-3 times to be
+// sure). Don't let rapid-fire detections keep yanking macOS app focus.
+let _lastWakeFocusAt = 0;
+const WAKE_FOCUS_COOLDOWN_MS = 5000;
+
 function wakeWordCallback() {
-  // Wake word "JARVIS" detected → show window + notify renderer
-  showWindow();
+  // Tell the renderer regardless — the flash effect is fine to fire on every
+  // detection, the input focus only stays inside JARVIS' own window.
   mainWindow?.webContents.send('wake-word-detected');
+
+  // Don't steal focus more than once every 5s. If user moved to Safari and
+  // OWW fires again, we'd otherwise yank them right back.
+  const now = Date.now();
+  if (now - _lastWakeFocusAt < WAKE_FOCUS_COOLDOWN_MS) return;
+  _lastWakeFocusAt = now;
+
+  // If the user is already inside JARVIS, no reason to .focus() again.
+  if (mainWindow?.isVisible() && mainWindow?.isFocused()) return;
+
+  showWindow();
 }
 
 ipcMain.handle('wake-word-start', () => {

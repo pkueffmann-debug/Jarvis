@@ -89,6 +89,10 @@ function createWindow() {
       contextIsolation: true, nodeIntegration: false,
     },
   });
+  // Reset the "activated by wake-word" gate whenever the user moves away
+  // from JARVIS. The next wake-word detection is then allowed to focus us
+  // again; further detections while we still hold focus are ignored.
+  mainWindow.on('blur', () => { _wasActivatedByWakeWord = false; });
   if (isDev) mainWindow.loadURL('http://localhost:5173');
   else       mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
 }
@@ -349,26 +353,21 @@ ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 
 
 // ── IPC: Wake Word ─────────────────────────────────────────────────────────
 
-// Debounce: OWW can fire multiple detections within seconds (the internal
-// cooldown is only 2.4s, and the user often says the phrase 2-3 times to be
-// sure). Don't let rapid-fire detections keep yanking macOS app focus.
-let _lastWakeFocusAt = 0;
-const WAKE_FOCUS_COOLDOWN_MS = 5000;
+// Wake-word focus gate. The flag is set true the first time a wake-word
+// detection brings JARVIS to the foreground, and stays true until the user
+// explicitly moves away (mainWindow 'blur'). While set, further detections
+// only fire the renderer IPC — they do not yank macOS focus. This stops
+// rapid-fire OWW detections from continuously stealing focus from whatever
+// app the user has moved to.
+let _wasActivatedByWakeWord = false;
 
 function wakeWordCallback() {
-  // Tell the renderer regardless — the flash effect is fine to fire on every
-  // detection, the input focus only stays inside JARVIS' own window.
+  // Renderer IPC always fires — the in-window flash + chat input focus are
+  // harmless and useful regardless of whether JARVIS is foreground.
   mainWindow?.webContents.send('wake-word-detected');
 
-  // Don't steal focus more than once every 5s. If user moved to Safari and
-  // OWW fires again, we'd otherwise yank them right back.
-  const now = Date.now();
-  if (now - _lastWakeFocusAt < WAKE_FOCUS_COOLDOWN_MS) return;
-  _lastWakeFocusAt = now;
-
-  // If the user is already inside JARVIS, no reason to .focus() again.
-  if (mainWindow?.isVisible() && mainWindow?.isFocused()) return;
-
+  if (_wasActivatedByWakeWord) return;   // already brought front this session
+  _wasActivatedByWakeWord = true;
   showWindow();
 }
 

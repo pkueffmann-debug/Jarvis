@@ -71,7 +71,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   supabaseConfig: () => ipcRenderer.invoke('supabase-config'),
 
   // Window mode (HUD vs Chat)
-  setWindowMode: (mode) => ipcRenderer.invoke('set-window-mode', mode),
+  setWindowMode:        (mode) => ipcRenderer.invoke('set-window-mode', mode),
+  getWindowMode:        ()     => ipcRenderer.invoke('get-window-mode'),
+  onWindowModeChanged:  (cb)   => ipcRenderer.on('window-mode-changed', (_e, m) => cb(m)),
+  offWindowModeChanged: ()     => ipcRenderer.removeAllListeners('window-mode-changed'),
 
   // Briefing
   briefingGet:    ()    => ipcRenderer.invoke('briefing-get'),

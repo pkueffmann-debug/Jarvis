@@ -4,20 +4,25 @@ import Settings from './Settings';
 import WakeWord from './WakeWord';
 import Paywall from './Paywall';
 import HUD from './HUD';
+import HudWindow from './HudWindow';
+import VoiceLoop from './VoiceLoop';
 import AuthScreen from './AuthScreen';
 import { getSession, onAuthStateChange } from './auth';
 
+// Chat layout dimensions (must match WINDOW_SIZES.chat in main.js)
 const W = 900;
-const H = 900;
-const HUD_H = 380;   // top HUD section height
+const H = 700;
+const HUD_H = 320;   // top HUD section height in chat mode
 const CHAT_H = H - HUD_H - 1; // bottom chat section height (1px divider)
 
 export default function App() {
   const [mode,          setMode]          = useState('loading'); // loading | auth | main
+  const [windowMode,    setWindowMode]    = useState('chat');    // chat | hud
   const [session,       setSession]       = useState(null);
   const [ttsOn,         setTtsOn]         = useState(() => localStorage.getItem('jarvis-tts') !== 'false');
   const [wakeWordOn,    setWakeWordOn]     = useState(() => localStorage.getItem('jarvis-wakeword') === 'true');
   const [wakeFlash,     setWakeFlash]     = useState(false);
+  const [voiceState,    setVoiceState]    = useState('idle'); // idle | listening | processing | speaking
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [showSettings,  setShowSettings]  = useState(false);
   const [showPaywall,   setShowPaywall]   = useState(false);
@@ -26,6 +31,26 @@ export default function App() {
   });
 
   const chatInputRef = useRef(null);
+
+  // ── Window mode sync ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!window.jarvis?.getWindowMode) return;
+    window.jarvis.getWindowMode().then((m) => m && setWindowMode(m)).catch(() => {});
+    window.jarvis.onWindowModeChanged?.((m) => setWindowMode(m));
+    return () => window.jarvis.offWindowModeChanged?.();
+  }, []);
+
+  const expandToChat = useCallback(() => {
+    window.jarvis?.setWindowMode?.('chat');
+    setWindowMode('chat');
+  }, []);
+  const collapseToHud = useCallback(() => {
+    window.jarvis?.setWindowMode?.('hud');
+    setWindowMode('hud');
+  }, []);
+  const closeWindow = useCallback(() => {
+    window.jarvis?.closeWindow?.();
+  }, []);
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -119,6 +144,27 @@ export default function App() {
     );
   }
 
+  // ── Compact HUD-only window mode ───────────────────────────────────────────
+  if (windowMode === 'hud') {
+    return (
+      <>
+        <WakeWord enabled={wakeWordOn} onDetected={handleWakeDetected} />
+        <VoiceLoop
+          enabled
+          onState={setVoiceState}
+          onOpenChat={expandToChat}
+          onCloseChat={closeWindow}
+        />
+        <HudWindow
+          statusMap={statusMap}
+          voiceState={voiceState}
+          onExpand={expandToChat}
+          onClose={closeWindow}
+        />
+      </>
+    );
+  }
+
   // ── Main: combined HUD + Chat ──────────────────────────────────────────────
   return (
     <div style={{
@@ -138,13 +184,26 @@ export default function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        // Subtle radial glow behind HUD
         background: 'radial-gradient(ellipse 600px 320px at 50% 50%, rgba(99,102,241,0.06) 0%, transparent 70%)',
       }}>
         <HUD
           statusMap={statusMap}
+          voiceState={voiceState}
           onFocusChat={() => chatInputRef.current?.focus()}
         />
+        {/* "Back to HUD" pill — top-left, only visible in chat mode */}
+        <button
+          onClick={collapseToHud}
+          title="Zur kompakten HUD wechseln"
+          style={{
+            position: 'absolute', top: 12, left: 12,
+            padding: '4px 10px', fontSize: 10, letterSpacing: 1.5, fontWeight: 700,
+            color: 'rgba(99,102,241,0.7)', background: 'rgba(99,102,241,0.06)',
+            border: '1px solid rgba(99,102,241,0.25)', borderRadius: 99,
+            cursor: 'pointer', WebkitAppRegion: 'no-drag',
+            fontFamily: 'Inter, sans-serif',
+          }}
+        >HUD ↑</button>
       </div>
 
       {/* ── Divider ─────────────────────────────────────────────────── */}

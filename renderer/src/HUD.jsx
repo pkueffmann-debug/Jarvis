@@ -37,7 +37,20 @@ function Ticks({ cx, cy, r, count = 72, bigEvery = 9 }) {
   return <>{ticks}</>;
 }
 
-export default function HUD({ onFocusChat, statusMap = {} }) {
+// Color palette per voice state. Anything not 'idle' overrides the default
+// indigo accents so the user can tell at a glance what JARVIS is doing.
+const STATE_PALETTE = {
+  idle:       { primary: '#6366F1', accent: '#818CF8', glow: 'rgba(99,102,241,'  },
+  listening:  { primary: '#10B981', accent: '#34D399', glow: 'rgba(16,185,129,'   },
+  processing: { primary: '#F59E0B', accent: '#FBBF24', glow: 'rgba(245,158,11,'   },
+  speaking:   { primary: '#06B6D4', accent: '#22D3EE', glow: 'rgba(6,182,212,'    },
+};
+
+const STATE_LABEL = {
+  idle: '', listening: 'HÖRT ZU', processing: 'DENKT', speaking: 'ANTWORTET',
+};
+
+export default function HUD({ onFocusChat, statusMap = {}, voiceState = 'idle' }) {
   const [hovered, setHovered] = useState(false);
   const [time,    setTime]    = useState(() => new Date());
 
@@ -48,6 +61,10 @@ export default function HUD({ onFocusChat, statusMap = {} }) {
 
   const timeStr = time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const dateStr = time.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+
+  const pal     = STATE_PALETTE[voiceState] || STATE_PALETTE.idle;
+  const active  = voiceState !== 'idle';
+  const pulsing = voiceState === 'listening' || voiceState === 'speaking';
 
   // 400×400 SVG — large HUD for 900px window
   const SIZE = 400;
@@ -83,8 +100,8 @@ export default function HUD({ onFocusChat, statusMap = {} }) {
             <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
           <radialGradient id="cg" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stopColor={hovered ? '#00D4FF' : '#6366F1'} stopOpacity="0.2"/>
-            <stop offset="70%"  stopColor={hovered ? '#6366F1' : '#818CF8'} stopOpacity="0.06"/>
+            <stop offset="0%"   stopColor={active ? pal.primary : (hovered ? '#00D4FF' : '#6366F1')} stopOpacity={active ? '0.32' : '0.2'}/>
+            <stop offset="70%"  stopColor={active ? pal.accent  : (hovered ? '#6366F1' : '#818CF8')} stopOpacity="0.08"/>
             <stop offset="100%" stopColor="#000" stopOpacity="0"/>
           </radialGradient>
         </defs>
@@ -173,12 +190,12 @@ export default function HUD({ onFocusChat, statusMap = {} }) {
           {dateStr.toUpperCase()}
         </text>
 
-        {/* "CHAT ↓" label */}
+        {/* Center label: voice state when active, otherwise "CHAT ↓" hint */}
         <text x={CX} y={CY + 20} textAnchor="middle" fontSize={7} fontWeight={700}
-          fill={hovered ? 'rgba(0,212,255,0.9)' : 'rgba(99,102,241,0.38)'}
+          fill={active ? pal.primary : (hovered ? 'rgba(0,212,255,0.9)' : 'rgba(99,102,241,0.38)')}
           fontFamily="Inter, system-ui" letterSpacing={2.5}
           style={{ transition: 'fill 0.2s' }}>
-          CHAT ↓
+          {active ? STATE_LABEL[voiceState] : 'CHAT ↓'}
         </text>
 
         {/* JARVIS label */}
@@ -188,24 +205,26 @@ export default function HUD({ onFocusChat, statusMap = {} }) {
         </text>
       </svg>
 
-      {/* Pulsing rings */}
-      <div className="animate-hud-pulse" style={{
+      {/* Pulsing rings — color tracks voice state, faster pulse when active */}
+      <div className={pulsing ? 'animate-hud-pulse-fast' : 'animate-hud-pulse'} style={{
         position: 'absolute',
         left: CX - R_MAIN, top: CY - R_MAIN,
         width: R_MAIN * 2, height: R_MAIN * 2,
         borderRadius: '50%',
-        background: 'radial-gradient(ellipse at center, rgba(99,102,241,0.07) 0%, transparent 70%)',
-        border: '1px solid rgba(99,102,241,0.25)',
+        background: `radial-gradient(ellipse at center, ${pal.glow}${active ? '0.18' : '0.07'}) 0%, transparent 70%)`,
+        border: `1px solid ${pal.glow}${active ? '0.55' : '0.25'})`,
         pointerEvents: 'none',
+        transition: 'background 0.3s, border-color 0.3s',
       }} />
-      <div className="animate-hud-pulse-cyan" style={{
+      <div className={pulsing ? 'animate-hud-pulse-fast-2' : 'animate-hud-pulse-cyan'} style={{
         position: 'absolute',
         left: CX - R_INNER, top: CY - R_INNER,
         width: R_INNER * 2, height: R_INNER * 2,
         borderRadius: '50%',
-        background: 'radial-gradient(ellipse at center, rgba(6,182,212,0.05) 0%, transparent 70%)',
-        border: '1px solid rgba(6,182,212,0.22)',
+        background: `radial-gradient(ellipse at center, ${pal.glow}${active ? '0.14' : '0.05'}) 0%, transparent 70%)`,
+        border: `1px solid ${pal.glow}${active ? '0.5' : '0.22'})`,
         pointerEvents: 'none',
+        transition: 'background 0.3s, border-color 0.3s',
       }} />
 
       {/* Clickable center button */}
@@ -218,11 +237,13 @@ export default function HUD({ onFocusChat, statusMap = {} }) {
           left: CX - R_CENTER, top: CY - R_CENTER,
           width: R_CENTER * 2, height: R_CENTER * 2,
           borderRadius: '50%',
-          border: `1px solid ${hovered ? 'rgba(0,212,255,0.65)' : 'rgba(99,102,241,0.45)'}`,
+          border: `1px solid ${active ? pal.glow + '0.75)' : (hovered ? 'rgba(0,212,255,0.65)' : 'rgba(99,102,241,0.45)')}`,
           background: 'transparent',
-          boxShadow: hovered
-            ? '0 0 20px rgba(0,212,255,0.4), 0 0 40px rgba(0,212,255,0.12), inset 0 0 16px rgba(0,212,255,0.08)'
-            : '0 0 14px rgba(99,102,241,0.28), inset 0 0 12px rgba(99,102,241,0.06)',
+          boxShadow: active
+            ? `0 0 24px ${pal.glow}0.45), 0 0 48px ${pal.glow}0.18), inset 0 0 18px ${pal.glow}0.12)`
+            : hovered
+              ? '0 0 20px rgba(0,212,255,0.4), 0 0 40px rgba(0,212,255,0.12), inset 0 0 16px rgba(0,212,255,0.08)'
+              : '0 0 14px rgba(99,102,241,0.28), inset 0 0 12px rgba(99,102,241,0.06)',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           transform: hovered ? 'scale(1.07)' : 'scale(1)',

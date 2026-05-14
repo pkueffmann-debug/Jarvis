@@ -77,9 +77,20 @@ ipcMain.on('confirm-action', (_e, confirmed) => {
 
 // ── Window ─────────────────────────────────────────────────────────────────
 
+// ── Window modes ──────────────────────────────────────────────────────────
+// "hud"  → small floating 420×420 (compact HUD circle only, voice-only flow)
+// "chat" → 900×700 (HUD on top + chat below). Wake-word opens at HUD size;
+//          user expands by clicking the HUD center or saying "open chat".
+const WINDOW_SIZES = {
+  hud:  { width: 420, height: 420 },
+  chat: { width: 900, height: 700 },
+};
+let _windowMode = 'chat';  // default for cold start; wake-word switches to 'hud'
+
 function createWindow() {
+  const { width, height } = WINDOW_SIZES[_windowMode];
   mainWindow = new BrowserWindow({
-    width: 900, height: 900,
+    width, height,
     show: false, frame: false, resizable: false,
     center: true,
     transparent: true, alwaysOnTop: false, skipTaskbar: false, hasShadow: false,
@@ -95,6 +106,19 @@ function createWindow() {
   mainWindow.on('blur', () => { _wasActivatedByWakeWord = false; });
   if (isDev) mainWindow.loadURL('http://localhost:5173');
   else       mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+}
+
+function setWindowMode(mode) {
+  if (!WINDOW_SIZES[mode] || !mainWindow) return { ok: false, error: 'unknown mode' };
+  _windowMode = mode;
+  const { width, height } = WINDOW_SIZES[mode];
+  // Re-center and resize. setBounds animates on macOS by default.
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const cx = Math.round(display.workArea.x + (display.workArea.width  - width)  / 2);
+  const cy = Math.round(display.workArea.y + (display.workArea.height - height) / 2);
+  mainWindow.setBounds({ x: cx, y: cy, width, height }, true);
+  mainWindow.webContents.send('window-mode-changed', mode);
+  return { ok: true, mode };
 }
 
 // ── Tray ───────────────────────────────────────────────────────────────────
@@ -368,6 +392,9 @@ function wakeWordCallback() {
 
   if (_wasActivatedByWakeWord) return;   // already brought front this session
   _wasActivatedByWakeWord = true;
+  // Wake word always opens the compact HUD. If user wants chat, they can
+  // click the HUD center or say "open chat".
+  setWindowMode('hud');
   showWindow();
 }
 
@@ -415,10 +442,8 @@ ipcMain.handle('supabase-config', () => ({
 }));
 
 // ── IPC: Window mode ───────────────────────────────────────────────────────
-ipcMain.handle('set-window-mode', (_e, _mode) => {
-  // Combined 900×900 layout — no mode switching needed
-  return { ok: true };
-});
+ipcMain.handle('set-window-mode', (_e, mode) => setWindowMode(mode));
+ipcMain.handle('get-window-mode', () => _windowMode);
 
 // ── IPC: Config get / set ──────────────────────────────────────────────────
 ipcMain.handle('config-get', (_e, key) => configSvc.get(key));

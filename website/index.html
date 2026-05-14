@@ -437,31 +437,15 @@
     }
     .net-center-sub { font-size: 10px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; }
 
-    /* JOURNEY LINE */
-    #journey-svg {
-      position: absolute; top: 0; left: 0;
-      width: 88px; pointer-events: none; z-index: 1; overflow: visible;
+    /* SCROLL PROGRESS BAR (Apple-style, top of page) */
+    #scroll-progress {
+      position: fixed; top: 0; left: 0;
+      height: 3px; width: 0%;
+      background: linear-gradient(90deg, #6366F1 0%, #818CF8 50%, #A78BFA 100%);
+      z-index: 10000; pointer-events: none;
+      box-shadow: 0 0 12px rgba(99,102,241,0.55), 0 0 24px rgba(129,140,248,0.25);
+      will-change: width;
     }
-    #journey-path {
-      stroke: #6366F1; stroke-width: 1.5; fill: none;
-      filter: url(#j-glow);
-    }
-    .j-dot {
-      fill: #818CF8; opacity: 0;
-      filter: url(#j-dot-glow);
-      transition: opacity 0.5s ease;
-    }
-    .j-dot.j-on { opacity: 1; }
-    .j-ring {
-      fill: none; stroke: rgba(129,140,248,0.5); stroke-width: 1.5;
-      opacity: 0; transform-box: fill-box; transform-origin: center;
-    }
-    .j-ring.j-on { animation: j-pulse 2s ease-out infinite; }
-    @keyframes j-pulse {
-      0%   { opacity: 0.7; transform: scale(1);   }
-      100% { opacity: 0;   transform: scale(3.2); }
-    }
-    @media(max-width: 1080px) { #journey-svg { display: none; } }
 
     /* RESPONSIVE */
     @media(max-width:1100px){ .testi-grid{ grid-template-columns:repeat(3,1fr); } }
@@ -520,21 +504,8 @@
   <a data-os="win" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Setup.exe" class="btn btn-outlined mobile-dl" onclick="toggleNav();trackDownload()" download>Windows — Free</a>
 </div>
 
-<!-- Journey Line — full-page scroll-drawn spine -->
-<svg id="journey-svg" width="88" height="100" aria-hidden="true">
-  <defs>
-    <filter id="j-glow" x="-150%" y="-5%" width="400%" height="110%">
-      <feGaussianBlur stdDeviation="2.5" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="j-dot-glow" x="-200%" y="-200%" width="500%" height="500%">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <path id="journey-path" d=""/>
-  <g id="journey-dots"></g>
-</svg>
+<!-- Scroll progress bar — fixed at top, fills as user scrolls -->
+<div id="scroll-progress" aria-hidden="true"></div>
 
 <!-- HERO -->
 <section class="hero" id="home">
@@ -645,39 +616,32 @@
 
     <!-- Center card: JARVIS Brain -->
     <div id="net-center" class="net-card">
-      <div style="font-size:32px;line-height:1">🤖</div>
       <div class="net-center-logo">JARVIS</div>
       <div class="net-center-sub">AI Brain</div>
     </div>
 
     <!-- 6 outer integration cards (hexagonal, clockwise from top) -->
     <div class="net-card net-outer" id="net-0">
-      <div class="net-icon">📬</div>
       <div class="net-label">Gmail</div>
       <div class="net-sublabel">Email</div>
     </div>
     <div class="net-card net-outer" id="net-1">
-      <div class="net-icon">📅</div>
       <div class="net-label">Kalender</div>
       <div class="net-sublabel">Events</div>
     </div>
     <div class="net-card net-outer" id="net-2">
-      <div class="net-icon">💬</div>
       <div class="net-label">iMessage</div>
       <div class="net-sublabel">Chat</div>
     </div>
     <div class="net-card net-outer" id="net-3">
-      <div class="net-icon">👁</div>
       <div class="net-label">Screen</div>
       <div class="net-sublabel">Vision</div>
     </div>
     <div class="net-card net-outer" id="net-4">
-      <div class="net-icon">🎙</div>
       <div class="net-label">Voice</div>
       <div class="net-sublabel">STT / TTS</div>
     </div>
     <div class="net-card net-outer" id="net-5">
-      <div class="net-icon">💻</div>
       <div class="net-label">Mac Control</div>
       <div class="net-sublabel">OS</div>
     </div>
@@ -916,7 +880,10 @@
         <svg width="14" height="10" viewBox="0 0 38 24" fill="none"><rect width="38" height="24" rx="4" fill="#003087"/><text x="5" y="16" font-size="8" font-weight="700" fill="white" font-family="Arial">Pay</text><text x="17" y="16" font-size="8" font-weight="400" fill="#009CDE" font-family="Arial">Pal</text></svg>
         PayPal
       </span>
-      <span class="pm-badge" style="color:var(--text-3);font-size:11px">🔒 SSL-verschlüsselt</span>
+      <span class="pm-badge" style="color:var(--text-3);font-size:11px;display:inline-flex;align-items:center;gap:6px;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        SSL-verschlüsselt
+      </span>
     </div>
   </div>
 </div>
@@ -1057,7 +1024,7 @@
     </div>
     <div class="footer-bottom">
       <p class="footer-copy">© 2025 JARVIS. Alle Rechte vorbehalten.</p>
-      <p class="footer-made">Made in Berlin 🇩🇪</p>
+      <p class="footer-made">Made in Berlin</p>
     </div>
   </div>
 </footer>
@@ -1292,90 +1259,27 @@ function showExit() { if (!exitShown) { exitShown = true; openM('exit'); } }
 setTimeout(showExit, 5000);
 document.addEventListener('mouseleave', e => { if (e.clientY < 5) showExit(); });
 
-// ── Journey Line ─────────────────────────────────────────────────────────────
+// ── Scroll Progress Bar ──────────────────────────────────────────────────────
 (function () {
-  const ns    = 'http://www.w3.org/2000/svg';
-  const svg   = document.getElementById('journey-svg');
-  const path  = document.getElementById('journey-path');
-  const dotsG = document.getElementById('journey-dots');
-  if (!svg) return;
+  const bar = document.getElementById('scroll-progress');
+  if (!bar) return;
 
-  // S-curve x-positions (within 88px wide SVG)
-  const Xc = 44, Xl = 16, Xr = 72;
-
-  // Section anchors where glowing dots appear
-  const DOT_SELS = ['.logos','#features','#demo','.compare-wrap','#pricing','.testi-wrap','#faq'];
-
-  let totalLen = 0;
-  let dots = [];   // [{ ring, dot, y }]
-
-  function build() {
-    const docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-    svg.setAttribute('height', docH);
-
-    // Dot y-positions: section.top + small inset
-    const dotYs = DOT_SELS
-      .map(s => document.querySelector(s))
-      .filter(Boolean)
-      .map(el => el.getBoundingClientRect().top + window.scrollY + 72);
-
-    // Build sinuous cubic-bezier path top → bottom
-    const pts = [0, ...dotYs, docH];
-    let d = `M ${Xc} 0`;
-    for (let i = 1; i < pts.length; i++) {
-      const y0 = pts[i - 1], y1 = pts[i];
-      const cpA = i % 2 === 1 ? Xr : Xl;
-      const cpB = i % 2 === 1 ? Xl : Xr;
-      d += ` C ${cpA} ${y0 + (y1-y0)*0.38}, ${cpB} ${y0 + (y1-y0)*0.62}, ${Xc} ${y1}`;
-    }
-    path.setAttribute('d', d);
-
-    // Set stroke-dash for scroll animation
-    totalLen = path.getTotalLength();
-    path.style.strokeDasharray  = totalLen;
-    path.style.strokeDashoffset = totalLen;
-
-    // Rebuild dots
-    dotsG.innerHTML = '';
-    dots = [];
-    dotYs.forEach(y => {
-      const ring = document.createElementNS(ns, 'circle');
-      ring.setAttribute('cx', Xc); ring.setAttribute('cy', y);
-      ring.setAttribute('r', '6'); ring.setAttribute('class', 'j-ring');
-
-      const dot = document.createElementNS(ns, 'circle');
-      dot.setAttribute('cx', Xc); dot.setAttribute('cy', y);
-      dot.setAttribute('r', '4'); dot.setAttribute('class', 'j-dot');
-
-      dotsG.appendChild(ring);
-      dotsG.appendChild(dot);
-      dots.push({ ring, dot, y });
-    });
-
-    draw();
+  let ticking = false;
+  function update() {
+    const h        = document.documentElement;
+    const scrolled = h.scrollTop || document.body.scrollTop;
+    const max      = h.scrollHeight - h.clientHeight;
+    const pct      = max > 0 ? Math.min(scrolled / max, 1) : 0;
+    bar.style.width = (pct * 100).toFixed(2) + '%';
+    ticking = false;
+  }
+  function onScroll() {
+    if (!ticking) { requestAnimationFrame(update); ticking = true; }
   }
 
-  function draw() {
-    const scrollY   = window.scrollY;
-    const maxScroll = document.body.scrollHeight - window.innerHeight;
-    const pct       = maxScroll > 0 ? Math.min(scrollY / maxScroll, 1) : 0;
-
-    path.style.strokeDashoffset = totalLen * (1 - pct);
-
-    // Activate dots when their section enters the lower 85% of viewport
-    const vis = scrollY + window.innerHeight * 0.85;
-    dots.forEach(({ ring, dot, y }) => {
-      const on = y <= vis;
-      dot.classList.toggle('j-on', on);
-      ring.classList.toggle('j-on', on);
-    });
-  }
-
-  window.addEventListener('scroll', draw, { passive: true });
-  window.addEventListener('resize', build);
-
-  if (document.readyState === 'complete') { build(); }
-  else { window.addEventListener('load', build); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', update);
+  update();
 })();
 
 // ── Features Network ─────────────────────────────────────────────────────────
@@ -1453,7 +1357,7 @@ async function startCheckout(plan) {
   btn.innerHTML = '<div class="btn-spinner"></div> Weiterleitung…';
 
   try {
-    const res  = await fetch('/create-checkout-session', {
+    const res  = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan, yearly }),

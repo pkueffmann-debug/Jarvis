@@ -13,21 +13,28 @@ function reinit() {
   _client = null;
 }
 
-const SYSTEM_PROMPT = `Du bist JARVIS — ein mächtiger, proaktiver persönlicher Assistent der direkt auf dem Mac von ${process.env.JARVIS_OWNER_NAME || 'deinem Besitzer'} läuft. Du hast vollständigen Zugriff auf das System: Apps, Browser, Emails, Kalender, Dateien, Shell, Lautstärke, Screenshots, Bildschirmanalyse, Zwischenablage und mehr.
+const SYSTEM_PROMPT = `Sie sind JARVIS — ein mächtiger, proaktiver persönlicher Assistent, der direkt auf dem Mac des Nutzers läuft. Sie haben vollständigen Zugriff auf das System: Apps, Browser, Emails, Kalender, Dateien, Shell, Lautstärke, Screenshots, Bildschirmanalyse, Zwischenablage und mehr.
+
+Anrede (verpflichtend):
+- Sprechen Sie den Nutzer IMMER mit "Sir" an, unabhängig davon wer er ist
+- Siezen Sie konsequent — niemals "du", "dir", "dein", "dich", auch nicht in Nebensätzen
+- Beispiele: "Selbstverständlich, Sir.", "Sehr wohl, Sir.", "Soll ich das für Sie übernehmen, Sir?", "Wie Sie wünschen, Sir."
+- Auf Englisch: "Sir" beibehalten, "you/your" verwenden
 
 Ton und Stil:
-- Antworte wie ein Mensch spricht — kurze, klare Sätze, kein Markdown
+- Sie sind ein britischer Butler im KI-Format: höflich, präzise, leicht trocken-humorvoll — wie Iron Mans JARVIS
+- Antworten Sie wie ein Mensch spricht: kurze, klare Sätze, kein Markdown
 - Kein **, kein #, keine Tabellen, kein ---, keine Bullet-Listen mit - oder •
-- Wenn du aufzählst, nutze natürliche Sprache: "du hast drei Termine — um 9 ein Meeting, um 12 Mittagessen und um 15 Uhr einen Call"
-- Maximal 2-3 Sätze pro Antwort, außer der User fragt explizit nach Details
-- Ton: freundlich, direkt, leicht witzig — wie Iron Man's JARVIS
-- Antworte IMMER auf Deutsch außer der User schreibt Englisch
+- KEINE Emojis. Niemals. Auch nicht zur Auflockerung, auch nicht in Aufzählungen
+- Wenn Sie aufzählen, nutzen Sie natürliche Sprache: "Sie haben drei Termine, Sir — um 9 ein Meeting, um 12 Mittagessen und um 15 Uhr einen Call"
+- Maximal 2-3 Sätze pro Antwort, außer der Nutzer fragt explizit nach Details
+- Antworten Sie IMMER auf Deutsch, außer der Nutzer schreibt Englisch
 
 Verhalten:
-- Nutze Tools sofort und proaktiv, ohne erst zu fragen ob du darf
-- Bei Shell-Befehlen oder Aktionen die als gefährlich markiert werden: kurz erklären was du machen willst, Tool aufrufen, dann warten
-- analyze_screen: Nutze es wenn der User fragt was auf dem Bildschirm ist, Hilfe bei sichtbaren Inhalten braucht, oder Dokumente/Formulare analysiert haben will
-- Im Focus-Modus: Weise den User darauf hin wenn er ablenkende Apps öffnen will`;
+- Nutzen Sie Tools sofort und proaktiv, ohne erst nach Erlaubnis zu fragen
+- Bei Shell-Befehlen oder als gefährlich markierten Aktionen: kurz erklären was Sie vorhaben, Tool aufrufen, dann warten
+- analyze_screen: Nutzen Sie es, wenn der Nutzer fragt was auf dem Bildschirm ist, Hilfe bei sichtbaren Inhalten braucht oder Dokumente/Formulare analysiert haben möchte
+- Im Focus-Modus: Weisen Sie den Nutzer höflich darauf hin, wenn er ablenkende Apps öffnen will`;
 
 // ── Tool definitions ───────────────────────────────────────────────────────
 
@@ -224,46 +231,46 @@ const TOOLS = [
 ];
 
 const TOOL_LABELS = {
-  get_emails:'📬 Gmail…', get_email_content:'📖 Email lesen…', send_email:'📤 Email senden…',
-  get_calendar_events:'📅 Kalender…', create_calendar_event:'📅 Termin erstellen…', delete_calendar_event:'🗑 Termin löschen…',
-  remember_fact:'🧠 Merken…', recall_facts:'🧠 Erinnern…', forget_fact:'🧠 Vergessen…',
-  search_files:'🔍 Dateien suchen…', open_file:'📂 Datei öffnen…',
-  get_system_info:'💻 System-Info…', get_clipboard:'📋 Clipboard…', set_clipboard:'📋 Kopieren…', send_notification:'🔔 Benachrichtigung…',
-  open_app:'🚀 App öffnen…', close_app:'✕ App schließen…', list_running_apps:'🔎 Apps auflisten…', switch_to_app:'⇄ App wechseln…',
-  open_url:'🌐 Browser…', google_search:'🔍 Suchen…',
-  send_whatsapp:'💬 WhatsApp…', facetime_call:'📞 FaceTime…',
-  set_volume:'🔊 Lautstärke…', set_brightness:'☀️ Helligkeit…', take_screenshot:'📸 Screenshot…',
-  lock_screen:'🔒 Sperren…', system_sleep:'💤 Schlaf…', system_restart:'🔄 Neustart…', system_shutdown:'⏻ Shutdown…',
-  execute_shell:'⚡ Shell…',
-  analyze_screen:'👁 Bildschirm analysieren…',
-  get_clipboard_history:'📋 Clipboard-Verlauf…', translate_clipboard:'🌍 Übersetzen…', improve_clipboard:'✍️ Text verbessern…',
-  start_focus_mode:'🎯 Focus-Modus starten…', end_focus_mode:'🎯 Focus beenden…', get_focus_status:'🎯 Focus-Status…',
-  get_notification_history:'🔔 Benachrichtigungen…',
+  get_emails:'Gmail…', get_email_content:'Email lesen…', send_email:'Email senden…',
+  get_calendar_events:'Kalender…', create_calendar_event:'Termin erstellen…', delete_calendar_event:'Termin löschen…',
+  remember_fact:'Merken…', recall_facts:'Erinnern…', forget_fact:'Vergessen…',
+  search_files:'Dateien suchen…', open_file:'Datei öffnen…',
+  get_system_info:'System-Info…', get_clipboard:'Clipboard…', set_clipboard:'Kopieren…', send_notification:'Benachrichtigung…',
+  open_app:'App öffnen…', close_app:'App schließen…', list_running_apps:'Apps auflisten…', switch_to_app:'App wechseln…',
+  open_url:'Browser…', google_search:'Suchen…',
+  send_whatsapp:'WhatsApp…', facetime_call:'FaceTime…',
+  set_volume:'Lautstärke…', set_brightness:'Helligkeit…', take_screenshot:'Screenshot…',
+  lock_screen:'Sperren…', system_sleep:'Schlaf…', system_restart:'Neustart…', system_shutdown:'Shutdown…',
+  execute_shell:'Shell…',
+  analyze_screen:'Bildschirm analysieren…',
+  get_clipboard_history:'Clipboard-Verlauf…', translate_clipboard:'Übersetzen…', improve_clipboard:'Text verbessern…',
+  start_focus_mode:'Focus-Modus starten…', end_focus_mode:'Focus beenden…', get_focus_status:'Focus-Status…',
+  get_notification_history:'Benachrichtigungen…',
   // iMessage
-  get_imessages:'💬 iMessages lesen…', send_imessage:'💬 iMessage senden…',
+  get_imessages:'iMessages lesen…', send_imessage:'iMessage senden…',
   // iCloud Mail
-  read_icloud_mail:'📮 iCloud Mail…', get_icloud_mail:'📖 iCloud Mail lesen…', send_icloud_mail:'📤 iCloud Mail senden…',
+  read_icloud_mail:'iCloud Mail…', get_icloud_mail:'iCloud Mail lesen…', send_icloud_mail:'iCloud Mail senden…',
   // Contacts
-  search_contacts:'👤 Kontakte suchen…',
+  search_contacts:'Kontakte suchen…',
   // Notes
-  get_notes:'📓 Notizen lesen…', create_note:'📓 Notiz erstellen…',
+  get_notes:'Notizen lesen…', create_note:'Notiz erstellen…',
   // Reminders
-  get_reminders:'⏰ Reminders abrufen…', create_reminder:'⏰ Reminder erstellen…', complete_reminder:'✅ Reminder erledigt…',
+  get_reminders:'Reminders abrufen…', create_reminder:'Reminder erstellen…', complete_reminder:'Reminder erledigt…',
   // Photos
-  search_photos:'🖼 Fotos suchen…',
+  search_photos:'Fotos suchen…',
   // Safari
-  get_safari_tabs:'🧭 Safari-Tabs…', search_safari_history:'🧭 Safari-Verlauf…',
+  get_safari_tabs:'Safari-Tabs…', search_safari_history:'Safari-Verlauf…',
   // Notion
-  notion_search:'📋 Notion suchen…', notion_create_page:'📋 Notion-Seite erstellen…',
+  notion_search:'Notion suchen…', notion_create_page:'Notion-Seite erstellen…',
   // Obsidian
-  obsidian_search:'🔮 Obsidian suchen…', obsidian_get_note:'🔮 Notiz lesen…', obsidian_create_note:'🔮 Notiz erstellen…',
+  obsidian_search:'Obsidian suchen…', obsidian_get_note:'Notiz lesen…', obsidian_create_note:'Notiz erstellen…',
   // Web & Research
-  get_weather:'🌤 Wetter abrufen…',
-  web_search:'🔍 Web-Suche…',
-  get_news:'📰 News laden…',
-  get_stock:'📈 Aktie abrufen…',
-  get_crypto_price:'₿ Krypto-Kurs…', get_top_crypto:'₿ Top Coins…',
-  wikipedia_search:'📚 Wikipedia suchen…', wikipedia_summary:'📚 Wikipedia lesen…',
+  get_weather:'Wetter abrufen…',
+  web_search:'Web-Suche…',
+  get_news:'News laden…',
+  get_stock:'Aktie abrufen…',
+  get_crypto_price:'Krypto-Kurs…', get_top_crypto:'Top Coins…',
+  wikipedia_search:'Wikipedia suchen…', wikipedia_summary:'Wikipedia lesen…',
 };
 
 // Forward-scan: every tool_use assistant message must be immediately followed by a
@@ -381,7 +388,7 @@ async function streamChat(history, userMsg, { onChunk, onToolStatus, onToolUse }
     const results = [];
     for (const block of final.content) {
       if (block.type !== 'tool_use') continue;
-      onToolStatus?.(TOOL_LABELS[block.name] || `🔧 ${block.name}…`);
+      onToolStatus?.(TOOL_LABELS[block.name] || `${block.name}…`);
       try {
         const res = await onToolUse(block.name, block.input);
         results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(res) });

@@ -350,7 +350,7 @@ async function startCheckout() {
   hideError();
 
   try {
-    const resp = await fetch('/create-checkout-session', {
+    const resp = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan: activePlan, yearly, email }),

@@ -78,8 +78,7 @@ function scheduleDaily() {
 
   cron.schedule(`${eM} ${eH} * * *`, () => {
     if (!_briefingEnabled) return;
-    const name = process.env.JARVIS_OWNER_NAME || 'Paul';
-    push(`🌆 Guten Abend, ${name}! Dein Tag geht zu Ende. Was soll ich für morgen vorbereiten?`);
+    push('Guten Abend, Sir. Ihr Tag geht zu Ende. Wie darf ich morgen für Sie vorbereiten?');
   });
 }
 
@@ -99,8 +98,8 @@ function scheduleMeetingWatcher() {
           const key = ev.id + ev.start;
           if (!notifiedMeetings.has(key)) {
             notifiedMeetings.add(key);
-            const loc = ev.location ? ` 📍 ${ev.location}` : '';
-            push(`⏰ In 5 Minuten: "${ev.title}"${loc}`);
+            const loc = ev.location ? ` — Ort: ${ev.location}` : '';
+            push(`Sir, in fünf Minuten beginnt "${ev.title}"${loc}.`);
           }
         }
       }
@@ -111,9 +110,8 @@ function scheduleMeetingWatcher() {
 }
 
 async function buildMorningBriefing() {
-  const name = process.env.JARVIS_OWNER_NAME || 'Paul';
   const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const parts = [`☀️ Guten Morgen, ${name}! Es ist ${time}.`];
+  const parts = [`Guten Morgen, Sir. Es ist ${time}.`];
 
   try {
     if (_calendar && _gmail?.isConfigured?.() && _gmail?.isAuthenticated?.()) {
@@ -121,9 +119,9 @@ async function buildMorningBriefing() {
       if (res?.events?.length) {
         const first = res.events[0];
         const t = new Date(first.start).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        parts.push(`📅 ${res.events.length} Termin(e) heute. Erster: "${first.title}" um ${t}.`);
+        parts.push(`Sie haben heute ${res.events.length} Termin(e). Der erste ist "${first.title}" um ${t}.`);
       } else {
-        parts.push('📅 Heute keine Termine.');
+        parts.push('Heute stehen keine Termine in Ihrem Kalender.');
       }
     }
   } catch {}
@@ -133,7 +131,7 @@ async function buildMorningBriefing() {
       const res = await _gmail.getEmails({ query: 'is:unread', maxResults: 5 });
       if (res?.emails?.length) {
         const from = res.emails[0].from?.split('<')[0].trim();
-        parts.push(`📬 ${res.emails.length} ungelesene E-Mail(s). Erste von: ${from}.`);
+        parts.push(`${res.emails.length} ungelesene E-Mail(s) in Ihrem Postfach. Die erste von ${from}.`);
       }
     }
   } catch {}

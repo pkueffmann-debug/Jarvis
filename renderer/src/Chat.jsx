@@ -3,7 +3,7 @@ import Voice from './Voice';
 
 const WELCOME = [{
   id: 1, role: 'jarvis', streaming: false,
-  content: 'Hallo! Ich bin JARVIS — dein persönlicher KI-Assistent.\nFrag mich nach Emails, Terminen, Dateien oder einfach was du brauchst.',
+  content: 'Guten Tag, Sir. Ich bin JARVIS — Ihr persönlicher KI-Assistent.\nFragen Sie mich nach Emails, Terminen, Dateien oder allem, was Sie benötigen.',
 }];
 
 // ── Arc Reactor pulse logo ─────────────────────────────────────────────────
@@ -268,7 +268,7 @@ export default function Chat({ ttsOn, onToggleTTS, onOpenSettings, onClose, inpu
         const id = Date.now() + 1;
         setMessages((p) => [...p, { id, role: 'jarvis', content: '', streaming: true }]);
         setStreaming(true);
-        const words = ['Alles aktiv! ', 'Calendar, Memory, Files — ', 'alle Tools bereit. ⚡'];
+        const words = ['Alles aktiv, Sir. ', 'Calendar, Memory, Files — ', 'sämtliche Tools sind bereit.'];
         let i = 0;
         const t = setInterval(() => {
           if (i >= words.length) { clearInterval(t); setMessages((p) => p.map((m) => m.id === id ? { ...m, streaming: false } : m)); setStreaming(false); return; }

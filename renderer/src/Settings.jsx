@@ -288,7 +288,7 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
           <Row label="Text-to-Speech" sub="JARVIS liest Antworten vor" right={<Toggle value={ttsOn} onChange={onToggleTTS} />} />
           <Row
             label="Wake Word — &quot;Hey JARVIS&quot;"
-            sub={wakeWordOn ? 'Hört auf dich · Picovoice AccessKey nötig' : 'Deaktiviert — AccessKey in API-Keys eintragen'}
+            sub={wakeWordOn ? 'Hört auf Sie · Picovoice AccessKey nötig' : 'Deaktiviert — AccessKey in API-Keys eintragen'}
             right={<Toggle value={!!wakeWordOn} onChange={onToggleWakeWord} />}
           />
           <Row
@@ -356,7 +356,7 @@ export default function Settings({ onClose, ttsOn, onToggleTTS, wakeWordOn, onTo
           />
           <ApiKeyRow
             label="Obsidian Vault Pfad"
-            sub="Absoluter Pfad zu deinem Vault, z.B. /Users/paul/Notes"
+            sub="Absoluter Pfad zu Ihrem Vault, z.B. /Users/paul/Notes"
             envKey="OBSIDIAN_VAULT_PATH"
             onSaved={refreshStatus}
           />

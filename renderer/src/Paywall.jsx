@@ -211,7 +211,7 @@ export default function Paywall({ licenseStatus, onActivated, onContinueFree }) 
         </div>
 
         <p className="text-center text-zinc-600 text-[10px] mt-4">
-          Nach dem Kauf erhältst du deinen Schlüssel per E-Mail.
+          Nach dem Kauf erhalten Sie Ihren Schlüssel per E-Mail.
         </p>
       </div>
     </div>

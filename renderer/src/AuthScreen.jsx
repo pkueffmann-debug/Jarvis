@@ -18,7 +18,7 @@ export default function AuthScreen({ onAuthenticated }) {
     try {
       if (mode === 'reset') {
         await resetPassword(email.trim());
-        setInfo('Reset-Link gesendet — check deine E-Mails.');
+        setInfo('Reset-Link gesendet — prüfen Sie bitte Ihren Posteingang.');
         setMode('signin');
         return;
       }
@@ -119,8 +119,8 @@ export default function AuthScreen({ onAuthenticated }) {
 
         {mode === 'signup' && (
           <p className="text-center text-zinc-700 text-[10px] mt-4 px-4 leading-relaxed">
-            Nach der Registrierung erhältst du eine Bestätigungs-E-Mail.
-            Nach dem Login starten deine 7 Tage Trial automatisch.
+            Nach der Registrierung erhalten Sie eine Bestätigungs-E-Mail.
+            Nach dem Login starten Ihre 7 Tage Trial automatisch.
           </p>
         )}
       </div>

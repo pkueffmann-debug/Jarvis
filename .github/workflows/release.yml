@@ -26,7 +26,7 @@ jobs:
         run: npm run build
 
       - name: Build DMG (arm64 + x64)
-        run: npx electron-builder --mac dmg --config -p never
+        run: npx electron-builder --mac dmg --arm64 --x64 --config -p never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

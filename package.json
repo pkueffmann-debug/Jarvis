@@ -31,6 +31,7 @@
       "preload.js",
       "onboarding/**/*",
       "services/**/*",
+      "!services/oww-venv/**",
       "scripts/generate-icon.js",
       "assets/**/*",
       "node_modules/**/*",

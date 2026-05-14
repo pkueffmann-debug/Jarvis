@@ -57,8 +57,11 @@ if (!fs.existsSync(VENV_PY)) {
 
 // ── 3. Install dependencies ─────────────────────────────────────────────────
 console.log('Installing dependencies (this may take a few minutes on first run)...');
+// Use `python -m pip` rather than the pip wrapper directly — on Windows
+// the pip.exe wrapper holds a file lock that blocks self-upgrades, and
+// `python -m pip` is the recommended invocation on all platforms anyway.
 function pip(args) {
-  const r = spawnSync(VENV_PIP, args, { stdio: 'inherit' });
+  const r = spawnSync(VENV_PY, ['-m', 'pip', ...args], { stdio: 'inherit' });
   if (r.status !== 0) process.exit(r.status || 1);
 }
 pip(['install', '--quiet', '--upgrade', 'pip']);

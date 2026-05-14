@@ -6,7 +6,7 @@ let session = null;
 let timer   = null;
 
 async function setDND(on) {
-  // macOS 13+ Focus via shortcuts, fallback to defaults
+  if (process.platform !== 'darwin') return;
   const val = on ? 'true' : 'false';
   try {
     await run(`defaults -currentHost write com.apple.notificationcenterui doNotDisturb -boolean ${val} 2>/dev/null`);

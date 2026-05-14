@@ -387,6 +387,12 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* OS-specific visibility — toggled by body.os-mac / body.os-win */
+    .os-win-only { display: none !important; }
+    body.os-win .os-mac-only { display: none !important; }
+    body.os-win .os-win-only { display: revert !important; }
+    /* Default = mac styling; on Windows, swap primary/outlined classes via JS */
+
     /* REVEAL */
     .rv { opacity: 0; transform: translateY(28px); }
 
@@ -492,11 +498,11 @@
     <li><a href="#faq">FAQ</a></li>
   </ul>
   <div style="display:flex;gap:8px;align-items:center;">
-    <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-outlined" style="display:flex" onclick="trackDownload()" download>
+    <a data-os="mac" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-outlined nav-dl" style="display:flex" onclick="trackDownload()" download>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
       Mac
     </a>
-    <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Portable-0.2.0.exe" class="btn btn-outlined" style="display:flex" onclick="trackDownload()" download>
+    <a data-os="win" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Setup.exe" class="btn btn-outlined nav-dl" style="display:flex" onclick="trackDownload()" download>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
       Windows
     </a>
@@ -510,8 +516,8 @@
   <a href="#pricing" onclick="toggleNav()">Pricing</a>
   <a href="#demo" onclick="toggleNav()">Demo</a>
   <a href="#faq" onclick="toggleNav()">FAQ</a>
-  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-primary" onclick="toggleNav();trackDownload()" download>Mac — Free</a>
-  <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Portable-0.2.0.exe" class="btn btn-outlined" onclick="toggleNav();trackDownload()" download>Windows — Free</a>
+  <a data-os="mac" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg" class="btn btn-primary mobile-dl" onclick="toggleNav();trackDownload()" download>Mac — Free</a>
+  <a data-os="win" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Setup.exe" class="btn btn-outlined mobile-dl" onclick="toggleNav();trackDownload()" download>Windows — Free</a>
 </div>
 
 <!-- Journey Line — full-page scroll-drawn spine -->
@@ -539,29 +545,36 @@
   </div>
   <h1 class="hero-headline" id="heroH">
     <span class="l1">Your AI.</span><br>
-    <span class="l2 grad">On your Mac.</span>
+    <span class="l2 grad" id="heroL2">On your Mac.</span>
   </h1>
   <p class="hero-sub" id="heroSub">JARVIS läuft lokal, kennt deinen Workflow und handelt bevor du fragst.</p>
   <div class="hero-btns" id="heroBtns">
     <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-      <a id="downloadBtn" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg"
+      <a id="downloadBtn" data-os="mac" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS.dmg"
          class="btn btn-primary" onclick="trackDownload()" download>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download for Mac — Free
+        <span class="dl-label">Download for Mac — Free</span>
         <span id="dlCount" style="margin-left:8px;opacity:0.65;font-size:11px;font-weight:500"></span>
       </a>
-      <a href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Portable-0.2.0.exe"
+      <a id="downloadBtnWin" data-os="win" href="https://github.com/pkueffmann-debug/Jarvis/releases/latest/download/JARVIS-Setup.exe"
          class="btn btn-outlined" onclick="trackDownload()" download style="display:flex;align-items:center;gap:8px;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download for Windows — Free
+        <span class="dl-label">Download for Windows — Free</span>
       </a>
     </div>
-    <div style="margin-top:12px;padding:10px 16px;border-radius:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);max-width:360px;text-align:left;">
+    <div class="os-mac-only" style="margin-top:12px;padding:10px 16px;border-radius:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);max-width:360px;text-align:left;">
       <p style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.6;margin:0;">
         <span style="color:#818CF8;font-weight:600;">Nach dem Download:</span>
         Rechtsklick auf <strong style="color:#fff;">JARVIS.dmg</strong> → <strong style="color:#fff;">Öffnen</strong> → <strong style="color:#fff;">Trotzdem öffnen</strong>
       </p>
       <p style="font-size:11px;color:rgba(255,255,255,0.35);margin:4px 0 0;">macOS Gatekeeper blockiert unbekannte Entwickler — das ist normal.</p>
+    </div>
+    <div class="os-win-only" style="margin-top:12px;padding:10px 16px;border-radius:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);max-width:360px;text-align:left;">
+      <p style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.6;margin:0;">
+        <span style="color:#818CF8;font-weight:600;">Nach dem Download:</span>
+        Doppelklick auf <strong style="color:#fff;">JARVIS-Setup.exe</strong> → bei SmartScreen-Warnung <strong style="color:#fff;">Weitere Informationen</strong> → <strong style="color:#fff;">Trotzdem ausführen</strong>
+      </p>
+      <p style="font-size:11px;color:rgba(255,255,255,0.35);margin:4px 0 0;">Windows Defender blockiert nicht-signierte Installer — das ist normal.</p>
     </div>
     <button class="btn btn-ghost">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -994,14 +1007,14 @@
         Gibt es eine Windows Version?
         <svg class="faq-ico" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
-      <div class="faq-a"><p>Aktuell ist JARVIS ausschließlich für macOS verfügbar. Eine Windows-Version ist in Entwicklung. Trage dich in unsere Warteliste ein um als Erster benachrichtigt zu werden.</p></div>
+      <div class="faq-a"><p>Ja — JARVIS läuft auf macOS (Apple Silicon &amp; Intel) und Windows 10/11 (x64). Beide Installer findest du oben auf dieser Seite oder direkt auf GitHub Releases. Mac-spezifische Features wie iMessage, Apple Notes und Reminders sind auf Windows naturgemäß nicht verfügbar — alles andere (Chat, Voice, Screen Awareness, Web-Tools) funktioniert identisch.</p></div>
     </div>
     <div class="faq-item rv">
       <button class="faq-q" onclick="faqToggle(this)">
         Wie installiere ich JARVIS?
         <svg class="faq-ico" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
-      <div class="faq-a"><p>Lade die .dmg Datei herunter, öffne sie und ziehe JARVIS in deinen Applications-Ordner. Beim ersten Start führt dich JARVIS durch die Berechtigungen (Accessibility, Screen Recording, Mikrofon) — dauert unter 3 Minuten.</p></div>
+      <div class="faq-a"><p><strong>macOS:</strong> Lade die .dmg herunter, öffne sie und ziehe JARVIS in den Applications-Ordner. Beim ersten Start führt dich JARVIS durch die Berechtigungen (Accessibility, Screen Recording, Mikrofon) — unter 3 Minuten.<br><br><strong>Windows:</strong> Lade JARVIS-Setup.exe herunter und führe sie aus. SmartScreen warnt vor unsignierten Installern — klicke „Weitere Informationen" → „Trotzdem ausführen". Wähle Installations-Ordner, fertig.</p></div>
     </div>
   </div>
 </div>
@@ -1478,21 +1491,58 @@ function trackDownload() {
     const total = current + 1 + 1247;
     el.textContent = `· ${total.toLocaleString('de-DE')} Downloads`;
   }
-  // Fetch real GitHub release info for download URL verification
+}
+
+// ── OS Detection ──────────────────────────────────────────────────────────────
+function detectOS() {
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const plat = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+  if (plat.includes('mac') || ua.includes('mac os') || ua.includes('macintosh')) return 'mac';
+  if (plat.includes('win') || ua.includes('windows')) return 'win';
+  return 'mac'; // sensible default (mobile / linux fall back to Mac branding)
+}
+
+(function applyOS() {
+  const os = detectOS();
+  document.body.classList.add(os === 'win' ? 'os-win' : 'os-mac');
+
+  // Headline swap
+  const l2 = document.getElementById('heroL2');
+  if (l2 && os === 'win') l2.textContent = 'On your PC.';
+
+  // Swap primary/outlined on hero download buttons so the detected OS is primary
+  if (os === 'win') {
+    const macBtn = document.getElementById('downloadBtn');
+    const winBtn = document.getElementById('downloadBtnWin');
+    if (macBtn && winBtn) {
+      macBtn.classList.remove('btn-primary'); macBtn.classList.add('btn-outlined');
+      winBtn.classList.remove('btn-outlined'); winBtn.classList.add('btn-primary');
+    }
+    // Navbar + mobile menu: make Windows button the primary visual
+    document.querySelectorAll('.mobile-dl').forEach(a => {
+      if (a.dataset.os === 'mac') { a.classList.remove('btn-primary'); a.classList.add('btn-outlined'); }
+      if (a.dataset.os === 'win') { a.classList.remove('btn-outlined'); a.classList.add('btn-primary'); }
+    });
+  }
+})();
+
+// ── Resolve real release asset URLs from GitHub API ──────────────────────────
+(function resolveReleaseUrls() {
   fetch('https://api.github.com/repos/pkueffmann-debug/Jarvis/releases/latest')
-    .then(r => r.json())
+    .then(r => r.ok ? r.json() : null)
     .then(data => {
-      const dmg = data.assets?.find(a => a.name.endsWith('.dmg'));
-      if (dmg) {
-        document.querySelectorAll('#downloadBtn, a[download]').forEach(a => {
-          a.href = dmg.browser_download_url;
-        });
-      }
+      if (!data || !Array.isArray(data.assets)) return;
+      const dmg   = data.assets.find(a => /\.dmg$/i.test(a.name) && !/blockmap/i.test(a.name));
+      const setup = data.assets.find(a => /setup.*\.exe$/i.test(a.name) && !/blockmap/i.test(a.name));
+      document.querySelectorAll('a[download][data-os="mac"]').forEach(a => {
+        if (dmg) a.href = dmg.browser_download_url;
+      });
+      document.querySelectorAll('a[download][data-os="win"]').forEach(a => {
+        if (setup) a.href = setup.browser_download_url;
+      });
     })
     .catch(() => {});
-}
-// Pre-fetch release on load
-setTimeout(trackDownload.bind(null, true), 1500);
+})();
 </script>
 </body>
 </html>

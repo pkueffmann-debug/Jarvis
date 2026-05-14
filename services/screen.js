@@ -4,13 +4,45 @@ const os   = require('os');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 
+const isDarwin  = process.platform === 'darwin';
+const isWindows = process.platform === 'win32';
+
+function captureMac(dest) {
+  execSync(`screencapture -x "${dest}"`, { timeout: 5000 });
+}
+
+function resizeMac(dest) {
+  execSync(`sips -Z 1440 "${dest}" --out "${dest}" 2>/dev/null || true`, { timeout: 5000 });
+}
+
+function captureWin(dest) {
+  const escaped = dest.replace(/\\/g, '\\\\');
+  const ps =
+    `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; ` +
+    `$b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; ` +
+    `$bmp=New-Object System.Drawing.Bitmap($b.Width,$b.Height); ` +
+    `$g=[System.Drawing.Graphics]::FromImage($bmp); ` +
+    `$g.CopyFromScreen($b.Location,[System.Drawing.Point]::Empty,$b.Size); ` +
+    `$bmp.Save('${escaped}'); $g.Dispose(); $bmp.Dispose()`;
+  execSync(
+    `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
+    { timeout: 8000 }
+  );
+}
+
 async function analyzeScreen(question = 'Was ist auf diesem Bildschirm zu sehen? Beschreibe alles detailliert.') {
+  if (!isDarwin && !isWindows) {
+    return { error: 'Screen-Analyse auf dieser Plattform nicht unterstützt.' };
+  }
+
   const tmpPath = path.join(os.tmpdir(), `jarvis_screen_${Date.now()}.png`);
   try {
-    // Silent full-screen capture
-    execSync(`screencapture -x "${tmpPath}"`, { timeout: 5000 });
-    // Resize to max 1440px wide to stay under API limits
-    execSync(`sips -Z 1440 "${tmpPath}" --out "${tmpPath}" 2>/dev/null || true`, { timeout: 5000 });
+    if (isDarwin) {
+      captureMac(tmpPath);
+      resizeMac(tmpPath);
+    } else {
+      captureWin(tmpPath);
+    }
 
     const base64 = fs.readFileSync(tmpPath).toString('base64');
 

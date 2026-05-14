@@ -18,7 +18,8 @@
     "backend": "cd backend && node server.js",
     "backend:dev": "cd backend && node --watch server.js",
     "deploy:backend": "cd backend && railway up --detach",
-    "release": "npm run build && electron-builder --mac dmg --publish always"
+    "release": "npm run build && electron-builder --mac dmg --publish always",
+    "build:wakeword": "bash scripts/build-wakeword.sh"
   },
   "build": {
     "appId": "com.jarvis.app",
@@ -39,6 +40,11 @@
       {
         "from": "assets/",
         "to": "assets/"
+      },
+      {
+        "from": "resources/wakeword",
+        "to": "wakeword",
+        "filter": ["**/*"]
       }
     ],
     "mac": {
@@ -71,12 +77,14 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "assets/jarvis.ico",
       "uninstallerIcon": "assets/jarvis.ico",
       "shortcutName": "JARVIS",
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "JARVIS-Setup-${version}.exe"
     },
     "portable": {
       "artifactName": "JARVIS-Portable-${version}.exe"
@@ -106,8 +114,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "pkueffmann",
-        "repo": "jarvis"
+        "owner": "pkueffmann-debug",
+        "repo": "Jarvis"
       }
     ]
   },

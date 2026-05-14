@@ -31,11 +31,45 @@ THRESHOLD       = 0.5           # confidence threshold
 COOLDOWN_FRAMES = 30            # ~2.4s cooldown after detection
 
 # ── Model ─────────────────────────────────────────────────────────────────────
-# OWW ships with several built-in models; "hey_jarvis" is available via
-# the openwakeword model zoo. Fall back to "alexa" if not available.
+# Priority order:
+#   1. Any custom .onnx in services/oww-custom-models/ — trained externally,
+#      e.g. via the OWW Colab notebook
+#   2. The built-in "hey_jarvis" model that ships with openwakeword
+#   3. Other built-ins as last resort
 PREFERRED_MODELS = ["hey_jarvis", "hey_mycroft", "alexa"]
 
+def _custom_models_dir():
+    # Production (PyInstaller --onedir): bundled at <bundle>/oww-custom-models/
+    here   = os.path.dirname(os.path.abspath(sys.executable))
+    bundle = os.path.join(here, "oww-custom-models")
+    if os.path.isdir(bundle):
+        return bundle
+    # Dev: source directory
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "oww-custom-models")
+
+def _find_custom_onnx():
+    d = _custom_models_dir()
+    if not os.path.isdir(d):
+        return None
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".onnx"):
+            return os.path.join(d, f)
+    return None
+
 def load_model():
+    # 1. Custom user-trained model takes precedence
+    custom = _find_custom_onnx()
+    if custom:
+        try:
+            m = Model(wakeword_models=[custom], inference_framework="onnx")
+            name = os.path.splitext(os.path.basename(custom))[0]
+            print(f"READY:{name}", flush=True)
+            return m, name
+        except Exception as e:
+            print(f"ERROR:custom_model_load_failed:{e}", flush=True)
+            # fall through to built-ins
+
+    # 2 + 3. Built-ins
     for name in PREFERRED_MODELS:
         try:
             m = Model(wakeword_models=[name], inference_framework="onnx")
@@ -43,7 +77,6 @@ def load_model():
             return m, name
         except Exception:
             continue
-    # Last resort: load whatever OWW has built-in
     try:
         m = Model(inference_framework="onnx")
         name = list(m.models.keys())[0]

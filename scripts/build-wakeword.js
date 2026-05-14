@@ -96,7 +96,7 @@ const pyinstArgs = [
 const r = spawnSync(VENV_PYINST, pyinstArgs, { stdio: 'inherit', cwd: ROOT });
 if (r.status !== 0) process.exit(r.status || 1);
 
-// ── 5. Verify ───────────────────────────────────────────────────────────────
+// ── 5. Verify + bundle custom models ────────────────────────────────────────
 const binaryName = IS_WIN ? 'wakeword.exe' : 'wakeword';
 const binaryPath = path.join(OUT_DIR, 'wakeword', binaryName);
 if (!fs.existsSync(binaryPath)) {
@@ -104,6 +104,20 @@ if (!fs.existsSync(binaryPath)) {
   process.exit(1);
 }
 if (!IS_WIN) fs.chmodSync(binaryPath, 0o755);
+
+// Copy any user-trained custom models so wakeword-oww.py finds them at runtime.
+// The Python script looks in <executable_dir>/oww-custom-models/.
+const CUSTOM_SRC = path.join(ROOT, 'services', 'oww-custom-models');
+const CUSTOM_DST = path.join(OUT_DIR, 'wakeword', 'oww-custom-models');
+if (fs.existsSync(CUSTOM_SRC)) {
+  fs.mkdirSync(CUSTOM_DST, { recursive: true });
+  for (const f of fs.readdirSync(CUSTOM_SRC)) {
+    if (f.endsWith('.onnx') || f.endsWith('.tflite')) {
+      fs.copyFileSync(path.join(CUSTOM_SRC, f), path.join(CUSTOM_DST, f));
+      console.log(`  + custom model: ${f}`);
+    }
+  }
+}
 
 // Folder size
 let totalBytes = 0;

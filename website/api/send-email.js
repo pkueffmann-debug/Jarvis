@@ -93,57 +93,124 @@ const TEMPLATES = {
   welcome:      welcomeTemplate,
 };
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function maskKey(key) {
+  if (!key) return '(unset)';
+  if (key.length <= 12) return `${key.slice(0, 3)}…(len=${key.length})`;
+  return `${key.slice(0, 8)}…${key.slice(-4)} (len=${key.length})`;
+}
+
+function diagnosticInfo() {
+  return {
+    runtime: {
+      node: process.version,
+      platform: process.platform,
+      region: process.env.VERCEL_REGION || null,
+      env: process.env.VERCEL_ENV || process.env.NODE_ENV || null,
+      deploymentUrl: process.env.VERCEL_URL || null,
+    },
+    env: {
+      RESEND_API_KEY:    maskKey(process.env.RESEND_API_KEY),
+      RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || '(default: JARVIS <noreply@jarvis-ai.app>)',
+      hasKey:            !!process.env.RESEND_API_KEY,
+      keyStartsWith_re:  process.env.RESEND_API_KEY?.startsWith('re_') ?? false,
+    },
+    templates: Object.keys(TEMPLATES),
+  };
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────
 
 module.exports = async function handler(req, res) {
+  const requestId = `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  console.log(`[send-email ${requestId}] ${req.method} ${req.url} from ${req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown'}`);
+
+  // GET = diagnostic endpoint (no email sent)
+  if (req.method === 'GET') {
+    const info = diagnosticInfo();
+    console.log(`[send-email ${requestId}] diagnostic:`, JSON.stringify(info));
+    return res.status(200).json(info);
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    return res.status(500).json({ error: 'RESEND_API_KEY ist nicht gesetzt (Vercel → Settings → Environment Variables).' });
+  // Env validation
+  const apiKey = process.env.RESEND_API_KEY;
+  console.log(`[send-email ${requestId}] env: RESEND_API_KEY=${maskKey(apiKey)} starts_with_re=${apiKey?.startsWith('re_') ?? false}`);
+
+  if (!apiKey) {
+    console.error(`[send-email ${requestId}] FAIL: RESEND_API_KEY missing in process.env`);
+    return res.status(500).json({
+      error: 'RESEND_API_KEY ist nicht gesetzt (Vercel → Settings → Environment Variables).',
+      requestId,
+      diagnostic: diagnosticInfo(),
+    });
+  }
+  if (!apiKey.startsWith('re_')) {
+    console.warn(`[send-email ${requestId}] WARN: API-Key beginnt nicht mit "re_" — wahrscheinlich falsch.`);
   }
 
+  // Body parsing
   const body = req.body || {};
   const to       = typeof body.to === 'string' ? body.to.trim() : '';
   const subject  = typeof body.subject === 'string' ? body.subject.trim() : '';
   const template = typeof body.template === 'string' ? body.template : '';
   const html     = typeof body.html === 'string' ? body.html : '';
 
-  if (!to)      return res.status(400).json({ error: 'Feld "to" fehlt.' });
-  if (!subject) return res.status(400).json({ error: 'Feld "subject" fehlt.' });
+  console.log(`[send-email ${requestId}] body: to=${to || '(missing)'} subject="${subject.slice(0, 60)}" template=${template || '(raw html)'} htmlLen=${html.length}`);
+
+  if (!to)      return res.status(400).json({ error: 'Feld "to" fehlt.', requestId });
+  if (!subject) return res.status(400).json({ error: 'Feld "subject" fehlt.', requestId });
   if (!html && !template) {
-    return res.status(400).json({ error: 'Entweder "html" oder "template" muss gesetzt sein.' });
+    return res.status(400).json({ error: 'Entweder "html" oder "template" muss gesetzt sein.', requestId });
   }
   if (template && !TEMPLATES[template]) {
-    return res.status(400).json({ error: `Unbekanntes Template "${template}". Verfügbar: ${Object.keys(TEMPLATES).join(', ')}` });
+    return res.status(400).json({
+      error: `Unbekanntes Template "${template}". Verfügbar: ${Object.keys(TEMPLATES).join(', ')}`,
+      requestId,
+    });
   }
 
   let renderedHtml;
   try {
     renderedHtml = template ? TEMPLATES[template](body) : html;
   } catch (e) {
-    return res.status(400).json({ error: e.message });
+    console.error(`[send-email ${requestId}] template render failed:`, e.message);
+    return res.status(400).json({ error: e.message, requestId });
   }
 
   const from = process.env.RESEND_FROM_EMAIL || 'JARVIS <noreply@jarvis-ai.app>';
+  console.log(`[send-email ${requestId}] sending: from="${from}" to="${to}" subject="${subject.slice(0, 60)}"`);
 
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const { data, error } = await resend.emails.send({
-      from,
-      to,
-      subject,
-      html: renderedHtml,
-    });
-    if (error) {
-      console.error('[Resend]', error);
-      return res.status(500).json({ error: error.message || 'Resend-Fehler.' });
+    const resend = new Resend(apiKey);
+    const t0 = Date.now();
+    const result = await resend.emails.send({ from, to, subject, html: renderedHtml });
+    const elapsed = Date.now() - t0;
+
+    console.log(`[send-email ${requestId}] resend response (${elapsed}ms):`, JSON.stringify({
+      data:  result?.data ?? null,
+      error: result?.error ?? null,
+    }));
+
+    if (result?.error) {
+      return res.status(502).json({
+        error: result.error.message || 'Resend lehnte den Versand ab.',
+        resendError: result.error,
+        requestId,
+      });
     }
-    return res.status(200).json({ ok: true, id: data?.id });
+    return res.status(200).json({ ok: true, id: result?.data?.id, requestId });
   } catch (e) {
-    console.error('[Resend]', e);
-    return res.status(500).json({ error: e.message });
+    console.error(`[send-email ${requestId}] Resend throw:`, e?.message, e?.stack);
+    return res.status(500).json({
+      error: e?.message || 'Unbekannter Fehler beim Resend-Aufruf.',
+      name: e?.name,
+      requestId,
+    });
   }
 };

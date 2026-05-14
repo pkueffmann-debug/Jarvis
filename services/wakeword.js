@@ -30,7 +30,8 @@ function owwBinaryPath() {
   if (!fs.existsSync(root)) return null;
   const stat = fs.statSync(root);
   if (stat.isFile()) return root;                   // --onefile legacy
-  const inner = path.join(root, 'wakeword');
+  const binName = process.platform === 'win32' ? 'wakeword.exe' : 'wakeword';
+  const inner = path.join(root, binName);
   return fs.existsSync(inner) ? inner : null;       // --onedir current
 }
 

@@ -19,7 +19,7 @@
     "backend:dev": "cd backend && node --watch server.js",
     "deploy:backend": "cd backend && railway up --detach",
     "release": "npm run build && electron-builder --mac dmg --publish always",
-    "build:wakeword": "bash scripts/build-wakeword.sh"
+    "build:wakeword": "node scripts/build-wakeword.js"
   },
   "build": {
     "appId": "com.jarvis.app",

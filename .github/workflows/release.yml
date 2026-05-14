@@ -19,8 +19,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
         run: npm ci
+
+      - name: Install PortAudio (pyaudio C dep)
+        run: brew install portaudio
+
+      - name: Build Wake Word binary (PyInstaller --onedir)
+        run: npm run build:wakeword
 
       - name: Build Vite
         run: npm run build
@@ -47,11 +57,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
         run: npm ci
 
       - name: Generate .ico
         run: node scripts/create-ico.js
+
+      - name: Build Wake Word binary (PyInstaller --onedir)
+        run: npm run build:wakeword
 
       - name: Build Vite
         run: npm run build

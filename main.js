@@ -340,19 +340,24 @@ ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 
 
 // ── IPC: Wake Word ─────────────────────────────────────────────────────────
 
+function wakeWordCallback() {
+  // Wake word "JARVIS" detected → show window + notify renderer
+  showWindow();
+  mainWindow?.webContents.send('wake-word-detected');
+}
+
 ipcMain.handle('wake-word-start', () => {
   const key = configSvc.get('PICOVOICE_ACCESS_KEY') || process.env.PICOVOICE_ACCESS_KEY;
-  if (!key) return { ok: false, error: 'PICOVOICE_ACCESS_KEY fehlt — bitte in Einstellungen eintragen.' };
-
-  const result = wakeWord.init(key, () => {
-    // Wake word "JARVIS" detected → show window + notify renderer
-    showWindow();
-    mainWindow?.webContents.send('wake-word-detected');
-  });
-  return result;
+  // Persist the preference so we pre-warm on next boot
+  configSvc.set('WAKE_WORD_ENABLED', 'true');
+  return wakeWord.init(key, wakeWordCallback);
 });
 
-ipcMain.handle('wake-word-stop',   () => { wakeWord.stop(); return { ok: true }; });
+ipcMain.handle('wake-word-stop',   () => {
+  configSvc.set('WAKE_WORD_ENABLED', '');
+  wakeWord.stop();
+  return { ok: true };
+});
 ipcMain.handle('wake-word-status', () => ({ active: wakeWord.isActive(), frameLength: wakeWord.frameLength(), sampleRate: wakeWord.sampleRate() }));
 
 // Audio frames arrive as plain arrays from the renderer (IPC serialises Int16Array → Array)
@@ -497,6 +502,15 @@ app.whenReady().then(() => {
     }
     // Start auto-updater after app is fully ready
     updater.init(mainWindow);
+
+    // Pre-warm wake word if it was enabled in the previous session — the OWW
+    // subprocess takes ~10s to reach READY on a --onedir bundle. Doing it now
+    // means the user doesn't sit on a "loading…" toggle later.
+    if (configSvc.get('WAKE_WORD_ENABLED') === 'true') {
+      const key = configSvc.get('PICOVOICE_ACCESS_KEY') || process.env.PICOVOICE_ACCESS_KEY;
+      const r = wakeWord.init(key, wakeWordCallback);
+      console.log('[WakeWord] pre-warm:', r);
+    }
   }, 2000);
 });
 

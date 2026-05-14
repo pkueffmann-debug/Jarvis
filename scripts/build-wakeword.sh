@@ -51,23 +51,32 @@ echo "Building standalone binary with PyInstaller..."
 mkdir -p "$OUT_DIR"
 cd "$PROJECT_DIR"
 
+# Use --onedir (default) so first-launch extraction is gone — boot drops
+# from ~3 min to ~10s. Single-file wrapper at $OUT_DIR/wakeword/wakeword.
+# Wipe any previous --onefile artifact first.
+rm -rf "$OUT_DIR/wakeword"
+
 "$PYINSTALLER" \
-  --onefile \
+  --onedir \
   --name wakeword \
   --distpath "$OUT_DIR" \
   --workpath /tmp/jarvis-pyinstaller-work \
   --specpath /tmp/jarvis-pyinstaller-spec \
   --noconfirm \
   --clean \
+  --collect-data openwakeword \
+  --collect-binaries openwakeword \
+  --hidden-import onnxruntime \
   "$PY_SCRIPT"
 
-if [ -f "$OUT_DIR/wakeword" ]; then
-  chmod +x "$OUT_DIR/wakeword"
+BINARY="$OUT_DIR/wakeword/wakeword"
+if [ -f "$BINARY" ]; then
+  chmod +x "$BINARY"
   SIZE=$(du -sh "$OUT_DIR/wakeword" | cut -f1)
   echo ""
-  echo "✓ Built: $OUT_DIR/wakeword ($SIZE)"
-  echo "✓ Test:  $OUT_DIR/wakeword  (should print READY:model_name)"
+  echo "✓ Built: $BINARY ($SIZE)"
+  echo "✓ Test:  $BINARY  (should print READY:model_name)"
 else
-  echo "ERROR: Build failed — wakeword binary not found in $OUT_DIR"
+  echo "ERROR: Build failed — wakeword binary not found at $BINARY"
   exit 1
 fi

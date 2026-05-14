@@ -14,13 +14,24 @@ const { app } = require('electron');
 const { spawn } = require('child_process');
 
 // ── OWW binary path ────────────────────────────────────────────────────────
+//
+// PyInstaller produces a --onedir bundle: a folder containing the executable
+// plus its libs. New layout: <bundle>/wakeword/wakeword (binary inside dir).
+// Old --onefile layout was: <bundle>/wakeword (single file).
+// We accept both so the code keeps working with whichever build is present.
+
+function resolveBundleRoot() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'wakeword');
+  return path.join(__dirname, '..', 'resources', 'wakeword');
+}
 
 function owwBinaryPath() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'wakeword');
-  }
-  const devPath = path.join(__dirname, '..', 'resources', 'wakeword');
-  return fs.existsSync(devPath) ? devPath : null;
+  const root = resolveBundleRoot();
+  if (!fs.existsSync(root)) return null;
+  const stat = fs.statSync(root);
+  if (stat.isFile()) return root;                   // --onefile legacy
+  const inner = path.join(root, 'wakeword');
+  return fs.existsSync(inner) ? inner : null;       // --onedir current
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -54,7 +65,7 @@ function initOWW(onDetected) {
         _active = true;
       } else if (line === 'WAKE_WORD_DETECTED' && ready) {
         console.log('[WakeWord] Hey JARVIS detected!');
-        onDetected?.();
+        _onDetected?.();
       } else if (line.startsWith('ERROR:')) {
         console.error('[WakeWord] OWW error:', line.slice(6));
       }
@@ -101,7 +112,13 @@ function initPorcupine(accessKey, onDetected) {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 function init(accessKey, onDetected) {
-  if (_active) stop();
+  // Idempotent: if a subprocess is already running, just swap the callback.
+  // Lets us pre-warm at app boot with a no-op and bind the real handler
+  // when the renderer toggles wake-word on.
+  if (_active) {
+    _onDetected = onDetected;
+    return { ok: true, backend: _backend, reused: true };
+  }
 
   // Try OWW first (no account needed, works for every buyer)
   const owwResult = initOWW(onDetected);
@@ -112,6 +129,10 @@ function init(accessKey, onDetected) {
 
   console.warn('[WakeWord] No backend available. Build the OWW binary (npm run build:wakeword) or add PICOVOICE_ACCESS_KEY.');
   return { ok: false, error: owwResult.error };
+}
+
+function setCallback(onDetected) {
+  _onDetected = onDetected;
 }
 
 function stop() {
@@ -134,4 +155,4 @@ const isActive    = () => _active;
 const frameLength = () => _porcupine?.frameLength ?? 512;
 const sampleRate  = () => _porcupine?.sampleRate  ?? 16000;
 
-module.exports = { init, processFrame, stop, isActive, frameLength, sampleRate };
+module.exports = { init, setCallback, processFrame, stop, isActive, frameLength, sampleRate };

@@ -211,20 +211,27 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
 
   // ── speak (TTS) ─────────────────────────────────────────────────────────
   const speakAndWait = useCallback(async (text) => {
-    if (!text || !text.trim()) return;
+    if (!text || !text.trim()) { console.log('[VoiceLoop] speak: empty text — skip'); return; }
     setState('speaking');
+    console.log(`[VoiceLoop] speak: requesting TTS for ${text.length} chars`);
     try {
       const b64 = await window.jarvis.speak(text);
-      if (!b64) return;
+      if (!b64) {
+        console.warn('[VoiceLoop] speak: TTS returned NULL — ElevenLabs key/voice missing or rejected. Skipping audio.');
+        return;
+      }
+      console.log(`[VoiceLoop] speak: got ${b64.length} chars of base64 audio, playing…`);
       const audio = new Audio('data:audio/mpeg;base64,' + b64);
       audioElRef.current = audio;
       await new Promise((resolve) => {
-        audio.onended = resolve;
-        audio.onerror = resolve;
-        audio.play().catch(resolve);
+        audio.onended = () => { console.log('[VoiceLoop] speak: audio ended'); resolve(); };
+        audio.onerror = (e) => { console.warn('[VoiceLoop] speak: audio error', e); resolve(); };
+        audio.play()
+          .then(() => console.log('[VoiceLoop] speak: audio.play() resolved (playback started)'))
+          .catch((err) => { console.warn('[VoiceLoop] speak: audio.play() rejected', err?.message); resolve(); });
       });
     } catch (err) {
-      console.warn('[VoiceLoop] TTS failed:', err);
+      console.warn('[VoiceLoop] speak: exception', err);
     }
   }, [setState]);
 

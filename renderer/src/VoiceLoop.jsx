@@ -63,20 +63,24 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
     if (cancelledRef.current) return null;
     setState('listening');
 
+    console.log('[VoiceLoop] step 1: requesting getUserMedia…');
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
       });
     } catch (err) {
-      console.warn('[VoiceLoop] mic permission denied:', err?.message);
+      console.warn('[VoiceLoop] step 1 FAIL — mic permission/access:', err?.name, err?.message);
       setState('idle');
       return null;
     }
+    console.log('[VoiceLoop] step 1 OK — got stream, tracks:', stream.getAudioTracks().map(t => t.label));
+
     if (cancelledRef.current) { stream.getTracks().forEach((t) => t.stop()); return null; }
     streamRef.current = stream;
 
     // VAD setup
+    console.log('[VoiceLoop] step 2: creating AudioContext…');
     const ctx = new AudioContext();
     ctxRef.current = ctx;
     const src = ctx.createMediaStreamSource(stream);
@@ -85,19 +89,28 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
     src.connect(analyser);
     analyserRef.current = analyser;
     const buf = new Uint8Array(analyser.frequencyBinCount);
+    console.log('[VoiceLoop] step 2 OK — AudioContext state:', ctx.state);
 
     // Recorder
+    console.log('[VoiceLoop] step 3: creating MediaRecorder…');
     const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find(
       (m) => MediaRecorder.isTypeSupported(m)
     ) || 'audio/webm';
     mimeRef.current = mime;
-    const recorder = new MediaRecorder(stream, { mimeType: mime });
+    let recorder;
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mime });
+    } catch (err) {
+      console.warn('[VoiceLoop] step 3 FAIL — MediaRecorder ctor:', err?.message);
+      return null;
+    }
     recorderRef.current = recorder;
     chunksRef.current = [];
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
     recorder.start(80);
+    console.log('[VoiceLoop] step 3 OK — recording, mime:', mime);
 
     // VAD loop. Threshold is conservative — user's mic was very quiet in
     // earlier tests. Adapt: track noise floor in the first ~400ms and set

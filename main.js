@@ -104,8 +104,14 @@ function createWindow() {
   // from JARVIS. The next wake-word detection is then allowed to focus us
   // again; further detections while we still hold focus are ignored.
   mainWindow.on('blur', () => { _wasActivatedByWakeWord = false; });
-  if (isDev) mainWindow.loadURL('http://localhost:5173');
-  else       mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:5173');
+    // Auto-open DevTools in a detached window so the tiny HUD mode (420×420)
+    // doesn't get covered by the inspector panel.
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  }
 }
 
 function setWindowMode(mode) {

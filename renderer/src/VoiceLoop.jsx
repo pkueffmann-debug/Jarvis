@@ -99,22 +99,31 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
     };
     recorder.start(80);
 
-    // VAD loop
-    const SPEECH_THRESHOLD   = 0.045;  // 0..1 RMS, tuned for typical mic gain
-    const SILENCE_HANG_MS    = 1500;   // stop this long after last speech
-    const MAX_LISTEN_MS      = 8000;   // give up if nothing spoken at all
-    const MIN_SPEECH_MS      = 250;    // ignore micro-blips
+    // VAD loop. Threshold is conservative — user's mic was very quiet in
+    // earlier tests. Adapt: track noise floor in the first ~400ms and set
+    // threshold to noise_floor * 3 (min 0.012, max 0.05).
+    const SILENCE_HANG_MS = 1500;
+    const MAX_LISTEN_MS   = 10000;
+    const MIN_SPEECH_MS   = 250;
+    const CALIBRATE_MS    = 400;
+    const MIN_THRESHOLD   = 0.012;
+    const MAX_THRESHOLD   = 0.05;
 
     const startedAt   = performance.now();
     let speechStartAt = 0;
     let lastLoudAt    = 0;
     let everSpoke     = false;
+    let noiseFloor    = 0;
+    let calibFrames   = 0;
+    let threshold     = MAX_THRESHOLD;  // conservative until calibrated
+    let logEvery      = 0;
+
+    console.log('[VoiceLoop] listen start');
 
     return new Promise((resolve) => {
       const tick = () => {
         if (cancelledRef.current) return resolve(null);
         analyser.getByteTimeDomainData(buf);
-        // Compute RMS on time-domain samples (centered around 128)
         let sum = 0;
         for (let i = 0; i < buf.length; i++) {
           const v = (buf[i] - 128) / 128;
@@ -122,19 +131,37 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
         }
         const rms = Math.sqrt(sum / buf.length);
         const now = performance.now();
+        const elapsed = now - startedAt;
 
-        if (rms >= SPEECH_THRESHOLD) {
+        // Calibrate noise floor in the first CALIBRATE_MS
+        if (elapsed < CALIBRATE_MS) {
+          noiseFloor = (noiseFloor * calibFrames + rms) / (calibFrames + 1);
+          calibFrames++;
+          if (elapsed >= CALIBRATE_MS - 16) {
+            threshold = Math.min(MAX_THRESHOLD, Math.max(MIN_THRESHOLD, noiseFloor * 3));
+            console.log(`[VoiceLoop] calibrated noise=${noiseFloor.toFixed(4)} threshold=${threshold.toFixed(4)}`);
+          }
+        }
+
+        // Periodic debug print so user can see what's happening
+        logEvery++;
+        if (logEvery % 30 === 0) {
+          console.log(`[VoiceLoop] rms=${rms.toFixed(4)} thr=${threshold.toFixed(4)} spoke=${everSpoke} elapsed=${(elapsed/1000).toFixed(1)}s`);
+        }
+
+        if (rms >= threshold) {
           if (!everSpoke) speechStartAt = now;
           everSpoke  = true;
           lastLoudAt = now;
         }
 
-        const elapsed = now - startedAt;
         if (everSpoke && (now - lastLoudAt) > SILENCE_HANG_MS &&
             (now - speechStartAt) > MIN_SPEECH_MS) {
+          console.log('[VoiceLoop] silence detected → submit');
           return finish(resolve, true);
         }
         if (!everSpoke && elapsed > MAX_LISTEN_MS) {
+          console.log('[VoiceLoop] no speech in MAX_LISTEN_MS → retry');
           return finish(resolve, false);
         }
         rafRef.current = requestAnimationFrame(tick);
@@ -156,8 +183,10 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
       if (!didSpeak || !chunksRef.current.length) return resolve(null);
       const blob = new Blob(chunksRef.current, { type: mimeRef.current });
       const buffer = await blob.arrayBuffer();
+      console.log(`[VoiceLoop] transcribing ${buffer.byteLength} bytes…`);
       try {
         const text = await window.jarvis.transcribeAudio(buffer, mimeRef.current);
+        console.log(`[VoiceLoop] transcript: "${text}"`);
         resolve((text || '').trim() || null);
       } catch (err) {
         console.warn('[VoiceLoop] transcribe failed:', err);
@@ -188,13 +217,22 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
 
   // ── Claude turn (send transcript, wait for full response) ──────────────
   const askClaude = useCallback((prompt) => new Promise((resolve) => {
+    console.log(`[VoiceLoop] → Claude: "${prompt}"`);
     let full = '';
-    const offChunk = window.jarvis.onChunk?.((c) => { full += c; });
-    const onDone = ({ fullText }) => {
+    // Clear any leftover listeners from previous turns
+    try { window.jarvis.offStream?.(); } catch {}
+    window.jarvis.onChunk?.((c) => { full += c; });
+    window.jarvis.onDone?.(({ fullText }) => {
+      const reply = (fullText || full || '').trim();
+      console.log(`[VoiceLoop] ← Claude (${reply.length} chars): "${reply.slice(0, 100)}${reply.length > 100 ? '…' : ''}"`);
       try { window.jarvis.offStream?.(); } catch {}
-      resolve((fullText || full || '').trim());
-    };
-    window.jarvis.onDone?.(onDone);
+      resolve(reply);
+    });
+    window.jarvis.onError?.((msg) => {
+      console.warn('[VoiceLoop] Claude error:', msg);
+      try { window.jarvis.offStream?.(); } catch {}
+      resolve('');
+    });
     window.jarvis.sendMessage(prompt);
   }), []);
 
@@ -204,6 +242,7 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
     cancelledRef.current = false;
 
     async function loop() {
+      console.log('[VoiceLoop] master loop started');
       while (!cancelledRef.current) {
         const text = await listenOnce();
         if (cancelledRef.current) break;
@@ -211,13 +250,14 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
         setState('processing');
 
         // Voice commands take priority over Claude
-        if (matchOpenChat(text))  { onOpenChat?.();  setState('idle');      break; }
-        if (matchCloseChat(text)) { onCloseChat?.(); setState('idle');      break; }
+        if (matchOpenChat(text))  { console.log('[VoiceLoop] cmd: open chat');  onOpenChat?.();  setState('idle'); break; }
+        if (matchCloseChat(text)) { console.log('[VoiceLoop] cmd: close chat'); onCloseChat?.(); setState('idle'); break; }
 
         const reply = await askClaude(text);
         if (cancelledRef.current) break;
-        await speakAndWait(reply);
+        if (reply) await speakAndWait(reply);
       }
+      console.log('[VoiceLoop] master loop ended');
     }
     loop();
     return () => { cancelledRef.current = true; stopAll(); };

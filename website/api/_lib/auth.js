@@ -4,8 +4,12 @@
 const cookie = require('cookie');
 const { adminClient } = require('./supabase');
 
-// Owner emails always allowed past the paywall.
-const WHITELIST = new Set(['p.kueffmann@icloud.com']);
+// Owner / team emails always allowed past the paywall.
+const WHITELIST = new Set([
+  'p.kueffmann@icloud.com',
+  't.henseling@gmx.de',
+  'jannis.l.timm@gmail.com'
+]);
 
 // Returns { user, subscription, error? }. On any failure caller should
 // short-circuit with 401/402.

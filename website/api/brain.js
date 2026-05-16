@@ -18,8 +18,12 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-// Owner emails always allowed past the paywall.
-const WHITELIST = new Set(['p.kueffmann@icloud.com']);
+// Owner / team emails always allowed past the paywall.
+const WHITELIST = new Set([
+  'p.kueffmann@icloud.com',
+  't.henseling@gmx.de',
+  'jannis.l.timm@gmail.com'
+]);
 
 // One admin client (service role) for subscription lookups that bypass RLS.
 const admin = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)

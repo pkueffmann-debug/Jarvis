@@ -8,7 +8,7 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '20mb' }));
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, { extensions: ['html'] }));
 
 // ── Dev: bypass the Supabase auth gate so localhost can hit /api/brain/* ──
 // In production the same handlers reject anonymous via the cookie+subscription

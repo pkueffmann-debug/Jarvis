@@ -101,11 +101,11 @@
       inset: 0;
       width: 100%; height: 100%;
       z-index: 1;
-      opacity: 0.85;
+      opacity: 1;
     }
     .hero-vignette {
       position: absolute; inset: 0;
-      background: radial-gradient(ellipse at center, transparent 0%, transparent 40%, var(--bg) 90%);
+      background: radial-gradient(ellipse at center, transparent 0%, transparent 55%, var(--bg) 95%);
       z-index: 2;
       pointer-events: none;
     }
@@ -168,6 +168,10 @@
       position: relative;
       overflow: hidden;
     }
+    .statement-inner {
+      position: relative;
+      will-change: transform;
+    }
     .statement-text {
       font-size: clamp(48px, 10vw, 180px);
       font-weight: 900;
@@ -175,12 +179,47 @@
       letter-spacing: -0.04em;
       color: #fff;
       text-align: center;
-      will-change: transform, opacity;
+      will-change: transform;
+      display: inline-block;
+      position: relative;
     }
     .statement-text.muted { color: var(--text-3); }
     .statement-text .grad {
       background: linear-gradient(135deg, var(--cyan), var(--accent-hover));
       -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .statement-text .char {
+      display: inline-block;
+      opacity: 0;
+      transform: translateY(8px);
+      will-change: transform, opacity, filter;
+    }
+    .statement-cursor {
+      display: inline-block;
+      width: 0.08em;
+      height: 0.85em;
+      vertical-align: -0.08em;
+      margin-left: 0.06em;
+      background: var(--cyan);
+      box-shadow: 0 0 18px var(--cyan), 0 0 36px rgba(34,211,238,0.6);
+      animation: blink 0.95s steps(2, start) infinite;
+      opacity: 0;
+    }
+    @keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+    .statement-particles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .stmt-particle {
+      position: absolute;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+      opacity: 0;
+      pointer-events: none;
     }
 
     /* ───────── SECTION 3 — PRODUCT VISUAL ───────── */
@@ -461,11 +500,73 @@
       filter: blur(0.4px);
       opacity: 0.55;
     }
-    .competitor:hover { opacity: 0.15; filter: blur(1.5px); transform: scale(0.92); }
-    .c-siri { top: 14%; left: 8%; }
-    .c-gpt { top: 22%; right: 10%; }
-    .c-copilot { bottom: 18%; left: 14%; }
-    .c-alexa { bottom: 24%; right: 6%; }
+    .competitor:hover {
+      opacity: 0.4;
+      filter: blur(0);
+      color: var(--text-2);
+      transform: scale(0.96);
+    }
+    .competitor .popup,
+    .compare-jarvis .popup {
+      position: absolute;
+      top: calc(100% + 14px);
+      left: 50%;
+      transform: translate(-50%, -8px);
+      width: max-content;
+      max-width: 280px;
+      padding: 14px 18px;
+      background: rgba(14,14,20,0.96);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(34,211,238,0.25);
+      border-radius: 12px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 30px rgba(34,211,238,0.14);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s, transform 0.25s, visibility 0s linear 0.25s;
+      z-index: 20;
+      pointer-events: none;
+      text-align: left;
+    }
+    .competitor:hover .popup,
+    .compare-jarvis:hover .popup {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, 0);
+      transition: opacity 0.25s, transform 0.25s, visibility 0s linear 0s;
+    }
+    .popup ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .popup li {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.4;
+    }
+    .popup li .mark { flex-shrink: 0; font-weight: 700; width: 14px; text-align: center; }
+    .popup li .mark.x  { color: #ef4444; }
+    .popup li .mark.ok { color: var(--cyan); }
+    .popup .popup-foot {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 11px;
+      color: var(--text-3);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .compare-jarvis { cursor: default; }
+    .compare-jarvis .popup { top: calc(100% + 22px); }
+    .c-siri    { top: 12%; left: 6%; }
+    .c-gpt     { top: 18%; right: 8%; }
+    .c-copilot { bottom: 30%; left: 12%; }
+    .c-alexa   { bottom: 38%; right: 6%; }
+    @media (max-width: 768px) {
+      .competitor .popup,
+      .compare-jarvis .popup { max-width: 220px; padding: 10px 14px; }
+      .popup li { font-size: 12px; }
+    }
     .compare-line {
       color: var(--text-2);
       font-size: clamp(15px, 1.8vw, 19px);
@@ -847,13 +948,22 @@
 <!-- SECTION 2 — STATEMENTS -->
 <section class="statements" id="statements">
   <div class="statement">
-    <h2 class="statement-text muted" data-stmt="left">Kein Suchen mehr.</h2>
+    <div class="statement-particles"></div>
+    <div class="statement-inner">
+      <h2 class="statement-text muted" data-text="Kein Suchen mehr."></h2>
+    </div>
   </div>
   <div class="statement">
-    <h2 class="statement-text muted" data-stmt="right">Kein Klicken mehr.</h2>
+    <div class="statement-particles"></div>
+    <div class="statement-inner">
+      <h2 class="statement-text muted" data-text="Kein Klicken mehr."></h2>
+    </div>
   </div>
   <div class="statement">
-    <h2 class="statement-text" data-stmt="up">Nur <span class="grad">sprechen</span>.</h2>
+    <div class="statement-particles"></div>
+    <div class="statement-inner">
+      <h2 class="statement-text" data-text="Nur sprechen." data-accent="sprechen"></h2>
+    </div>
   </div>
 </section>
 
@@ -932,11 +1042,56 @@
       <div class="compare-jarvis">
         <div class="name">JARVIS</div>
         <div class="tag">Versteht deinen Mac</div>
+        <div class="popup">
+          <ul>
+            <li><span class="mark ok">✓</span>Wake Word — "Hey JARVIS"</li>
+            <li><span class="mark ok">✓</span>Email- &amp; Kalender-Integration</li>
+            <li><span class="mark ok">✓</span>Screen Awareness (Vision)</li>
+            <li><span class="mark ok">✓</span>Multi-AI: Claude, GPT, Lokal</li>
+          </ul>
+          <div class="popup-foot">Alles davon. Und mehr.</div>
+        </div>
       </div>
-      <span class="competitor c-siri">Siri</span>
-      <span class="competitor c-gpt">ChatGPT</span>
-      <span class="competitor c-copilot">Copilot</span>
-      <span class="competitor c-alexa">Alexa</span>
+      <span class="competitor c-siri">Siri
+        <span class="popup">
+          <ul>
+            <li><span class="mark x">✗</span>Versteht den Kontext deines Bildschirms nicht</li>
+            <li><span class="mark x">✗</span>Kein Multi-AI — kein Claude, kein GPT</li>
+            <li><span class="mark x">✗</span>Keine echte Email-Triage</li>
+            <li><span class="mark x">✗</span>Keine Custom-Tools, kein Shell-Access</li>
+          </ul>
+        </span>
+      </span>
+      <span class="competitor c-gpt">ChatGPT
+        <span class="popup">
+          <ul>
+            <li><span class="mark x">✗</span>Kein Mac-Zugriff (Apps, Volume, Dateien)</li>
+            <li><span class="mark x">✗</span>Kein Wake Word</li>
+            <li><span class="mark x">✗</span>Keine Email-Integration</li>
+            <li><span class="mark x">✗</span>Keine Screen Awareness</li>
+          </ul>
+        </span>
+      </span>
+      <span class="competitor c-copilot">Copilot
+        <span class="popup">
+          <ul>
+            <li><span class="mark x">✗</span>Windows-First, Mac-Support löchrig</li>
+            <li><span class="mark x">✗</span>Kein Wake Word</li>
+            <li><span class="mark x">✗</span>Cloud-only — kein lokales Modell</li>
+            <li><span class="mark x">✗</span>Keine Gmail/Apple-Mail-Hooks</li>
+          </ul>
+        </span>
+      </span>
+      <span class="competitor c-alexa">Alexa
+        <span class="popup">
+          <ul>
+            <li><span class="mark x">✗</span>Smart-Home-Tool, kein Mac-Assistent</li>
+            <li><span class="mark x">✗</span>Kein Screen Vision</li>
+            <li><span class="mark x">✗</span>Kein Multi-AI Backbone</li>
+            <li><span class="mark x">✗</span>Kein produktives Tooling</li>
+          </ul>
+        </span>
+      </span>
     </div>
     <p class="compare-line">
       <strong>Der einzige Assistent</strong> der deinen Mac wirklich versteht.
@@ -1071,9 +1226,12 @@
     <a href="#pricing">Preise</a>
     <a href="/brain">JARVIS öffnen</a>
     <a href="/auth.html">Anmelden</a>
-    <a href="mailto:p.kueffmann@icloud.com">Kontakt</a>
+    <a href="/contact">Kontakt</a>
   </div>
-  <p class="footer-copy">© 2026 JARVIS · Made by Paul</p>
+  <p class="footer-copy">© 2026 JARVIS · ein Produkt von WMW Services</p>
+  <p class="footer-copy" style="margin-top:6px;opacity:0.7;">
+    Impressum: WMW Services · Inhaber: Paul Küffmann · Adresse: Auf Anfrage · <a href="mailto:p.kueffmann@icloud.com" style="color:inherit;text-decoration:underline;">p.kueffmann@icloud.com</a>
+  </p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1146,18 +1304,139 @@ function toggleNav() { document.getElementById('mobileNav').classList.toggle('op
     .to('#scrollCue', { opacity: 1, duration: 0.8, ease: 'power2.out' }, '-=0.3');
 })();
 
-// Section 2: scroll-triggered statements
-document.querySelectorAll('.statement-text').forEach((el) => {
-  const dir = el.dataset.stmt;
-  const fromVars = { opacity: 0 };
-  if (dir === 'left')  fromVars.x = -200;
-  if (dir === 'right') fromVars.x = 200;
-  if (dir === 'up')    fromVars.y = 120;
-  gsap.fromTo(el, fromVars, {
-    opacity: 1, x: 0, y: 0, duration: 1, ease: 'power3.out',
-    scrollTrigger: { trigger: el, start: 'top 75%', end: 'bottom 25%', toggleActions: 'play none none reverse' }
+// Section 2: typewriter statements with cursor, char-explosion, particles, mouse parallax
+(function statementChoreo() {
+  const statements = document.querySelectorAll('.statement');
+  if (!statements.length) return;
+
+  // 1) Split each statement into char-spans + add cursor.
+  statements.forEach((sect) => {
+    const el     = sect.querySelector('.statement-text');
+    const text   = el.dataset.text || el.textContent;
+    const accent = el.dataset.accent;
+    el.textContent = '';
+    const accentStart = accent ? text.toLowerCase().indexOf(accent.toLowerCase()) : -1;
+    const accentEnd   = accent ? accentStart + accent.length : -1;
+    [...text].forEach((ch, idx) => {
+      const span = document.createElement('span');
+      span.className = 'char';
+      if (accentStart >= 0 && idx >= accentStart && idx < accentEnd) {
+        span.classList.add('grad');
+      }
+      span.textContent = ch === ' ' ? ' ' : ch;
+      el.appendChild(span);
+    });
+    const cursor = document.createElement('span');
+    cursor.className = 'statement-cursor';
+    el.appendChild(cursor);
   });
-});
+
+  // 2) Mouse parallax — every statement gets a subtle drift.
+  if (!isMobile) {
+    let mx = 0, my = 0;
+    window.addEventListener('mousemove', (e) => {
+      mx = (e.clientX / window.innerWidth  - 0.5) * 2;
+      my = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+    function tick() {
+      document.querySelectorAll('.statement-inner').forEach((inner) => {
+        gsap.set(inner, { x: mx * 24, y: my * 16 });
+      });
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // 3) Particle helper — emit n dots that drift outward and fade.
+  function emitParticles(container, count = 14) {
+    if (reduceMotion) return;
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'stmt-particle';
+      p.style.left = cx + 'px';
+      p.style.top  = cy + 'px';
+      container.appendChild(p);
+      const angle = Math.random() * Math.PI * 2;
+      const dist  = 80 + Math.random() * 220;
+      gsap.fromTo(p,
+        { opacity: 0.9, x: 0, y: 0, scale: 1 },
+        {
+          opacity: 0,
+          x: Math.cos(angle) * dist,
+          y: Math.sin(angle) * dist,
+          scale: 0.3,
+          duration: 1.2 + Math.random() * 0.6,
+          ease: 'power2.out',
+          onComplete: () => p.remove()
+        });
+    }
+  }
+
+  // 4) Per-statement scroll choreography: typewriter in, explode out.
+  statements.forEach((sect) => {
+    const el     = sect.querySelector('.statement-text');
+    const chars  = el.querySelectorAll('.char');
+    const cursor = el.querySelector('.statement-cursor');
+    const partBox = sect.querySelector('.statement-particles');
+
+    // Initial state: cursor hidden, chars hidden.
+    gsap.set(cursor, { opacity: 0 });
+    gsap.set(chars, { opacity: 0, y: 8 });
+
+    let played = false;
+
+    ScrollTrigger.create({
+      trigger: sect,
+      start: 'top 70%',
+      end:   'bottom 30%',
+      onEnter: () => {
+        if (played) return;
+        played = true;
+        gsap.set(cursor, { opacity: 1 });
+        // Typewriter: ~28ms per char, faster ease near the end.
+        gsap.to(chars, {
+          opacity: 1, y: 0,
+          duration: 0.05,
+          stagger: 0.028,
+          ease: 'none'
+        });
+      },
+      onLeave: () => {
+        // Explode out — chars scatter, then particles spray.
+        gsap.set(cursor, { opacity: 0 });
+        gsap.to(chars, {
+          opacity: 0,
+          y: () => -40 - Math.random() * 60,
+          x: () => (Math.random() - 0.5) * 120,
+          rotate: () => (Math.random() - 0.5) * 60,
+          filter: 'blur(4px)',
+          duration: 0.6,
+          ease: 'power2.in',
+          stagger: { each: 0.008, from: 'random' }
+        });
+        if (partBox) emitParticles(partBox, 18);
+      },
+      onEnterBack: () => {
+        // Coming back up — reset, then typewriter again.
+        gsap.set(chars, { opacity: 0, y: 8, x: 0, rotate: 0, filter: 'blur(0px)' });
+        gsap.set(cursor, { opacity: 1 });
+        gsap.to(chars, {
+          opacity: 1, y: 0,
+          duration: 0.05,
+          stagger: 0.022,
+          ease: 'none'
+        });
+      },
+      onLeaveBack: () => {
+        gsap.set(cursor, { opacity: 0 });
+        gsap.to(chars, { opacity: 0, y: 8, duration: 0.3 });
+      }
+    });
+  });
+})();
 
 // Section 3: product mock parallax tilt
 (function productTilt() {
@@ -1266,41 +1545,152 @@ function togglePrice() {
   gsap.fromTo([pN, tN, eN], {scale:1.2}, {scale:1, duration:0.35, ease:'back.out(2)'});
 }
 
-// 3D Neon Tubes Hero (preserved — click hero = colour cycle)
-(async () => {
+// Hero Neural Circle — centered, continuous rotation, cyan/indigo glow.
+// Click hero = cycle through colour themes.
+(function neuralCircle() {
   const canvas = document.getElementById('hero-canvas');
   if (!canvas) return;
-  const colorSets = [
-    { colors: ['#6366F1','#818CF8','#4F46E5'], lights: ['#6366F1','#A78BFA','#7C3AED','#4338CA'] },
-    { colors: ['#A78BFA','#C4B5FD','#7C3AED'], lights: ['#8B5CF6','#DDD6FE','#6D28D9','#4C1D95'] },
-    { colors: ['#4F46E5','#312E81','#818CF8'], lights: ['#4338CA','#3730A3','#6366F1','#818CF8'] },
-    { colors: ['#7C3AED','#8B5CF6','#6366F1'], lights: ['#7C3AED','#A78BFA','#4F46E5','#818CF8'] },
-    { colors: ['#22D3EE','#67E8F9','#0891B2'], lights: ['#06B6D4','#22D3EE','#67E8F9','#0E7490'] }
-  ];
-  let colorIdx = 0;
-  let TubesCursor = null;
-  let app = null;
+  const ctx = canvas.getContext('2d');
 
-  async function initTubes(set) {
-    if (!TubesCursor) {
-      try {
-        const mod = await import('https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js');
-        TubesCursor = mod.default;
-      } catch (e) { console.warn('Tubes load failed', e); return; }
-    }
-    if (app && typeof app.destroy === 'function') app.destroy();
-    app = TubesCursor(canvas, {
-      tubes: { colors: set.colors, lights: { intensity: 200, colors: set.lights } }
-    });
+  const themes = [
+    { core: '#22D3EE', ring: '#6366F1', dot: '#67E8F9' },
+    { core: '#A78BFA', ring: '#7C3AED', dot: '#C4B5FD' },
+    { core: '#67E8F9', ring: '#4F46E5', dot: '#22D3EE' },
+    { core: '#818CF8', ring: '#06B6D4', dot: '#A78BFA' }
+  ];
+  let themeIdx = 0;
+  let theme = themes[0];
+
+  let W = 0, H = 0, cx = 0, cy = 0, R = 0;
+  const dpr = window.devicePixelRatio || 1;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width  = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    // Make circle clearly visible: ~22% of the smaller viewport dimension.
+    R = Math.min(W, H) * 0.22;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Convert hex → rgba for canvas glow.
+  function rgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
   }
 
+  let t = 0;
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 1) Atmospheric outer glow (large, soft).
+    const farGlow = ctx.createRadialGradient(cx, cy, R * 0.5, cx, cy, R * 3.2);
+    farGlow.addColorStop(0,    rgba(theme.ring, 0.20));
+    farGlow.addColorStop(0.45, rgba(theme.core, 0.08));
+    farGlow.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = farGlow;
+    ctx.fillRect(0, 0, W, H);
+
+    // 2) Inner core glow.
+    const coreGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.85);
+    coreGlow.addColorStop(0,    rgba(theme.core, 0.55));
+    coreGlow.addColorStop(0.5,  rgba(theme.ring, 0.18));
+    coreGlow.addColorStop(1,    'rgba(0,0,0,0)');
+    ctx.fillStyle = coreGlow;
+    ctx.fillRect(0, 0, W, H);
+
+    // 3) Outermost ring — dashed, slow CCW rotation.
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.00018);
+    ctx.beginPath();
+    ctx.setLineDash([3, 9]);
+    ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
+    ctx.strokeStyle = rgba(theme.ring, 0.55);
+    ctx.lineWidth = 1.1;
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = theme.ring;
+    ctx.stroke();
+    ctx.restore();
+
+    // 4) Mid ring — three solid arc segments, CW rotation.
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-t * 0.00032);
+    ctx.setLineDash([]);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const start = (i * Math.PI * 2) / 3 + 0.1;
+      const len   = Math.PI / 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.25, start, start + len);
+      ctx.strokeStyle = rgba(theme.core, 0.85);
+      ctx.lineWidth = 2.4;
+      ctx.shadowBlur = 24;
+      ctx.shadowColor = theme.core;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 5) Inner ring — solid thin, slow CCW.
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.00045);
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.92, 0, Math.PI * 2);
+    ctx.strokeStyle = rgba(theme.core, 0.45);
+    ctx.lineWidth = 1.2;
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = theme.core;
+    ctx.stroke();
+    ctx.restore();
+
+    // 6) Orbital dot riding on the mid ring.
+    ctx.save();
+    ctx.translate(cx, cy);
+    const orbR = R * 1.25;
+    const px = Math.cos(t * 0.0006) * orbR;
+    const py = Math.sin(t * 0.0006) * orbR;
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fillStyle = theme.dot;
+    ctx.shadowBlur = 28;
+    ctx.shadowColor = theme.dot;
+    ctx.fill();
+    ctx.restore();
+
+    // 7) Pulse — gentle radius modulation on the central glow already happens
+    //          via 'glow-breathe' on .mock-glow elsewhere; here we add a soft
+    //          radial inner ring that breathes.
+    const breath = 0.85 + Math.sin(t * 0.0018) * 0.08;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.5 * breath, 0, Math.PI * 2);
+    ctx.strokeStyle = rgba(theme.core, 0.65);
+    ctx.lineWidth = 1.6;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = theme.core;
+    ctx.stroke();
+    ctx.restore();
+
+    t += 16;
+    if (!reduceMotion) requestAnimationFrame(draw);
+  }
+  draw();
+
+  // Click anywhere on hero (except links/buttons) cycles the theme.
   document.getElementById('home').addEventListener('click', (e) => {
     if (e.target.closest('a, button')) return;
-    colorIdx = (colorIdx + 1) % colorSets.length;
-    initTubes(colorSets[colorIdx]);
+    themeIdx = (themeIdx + 1) % themes.length;
+    theme = themes[themeIdx];
   });
-
-  initTubes(colorSets[0]);
 })();
 
 // Supabase client (same project as auth.html)

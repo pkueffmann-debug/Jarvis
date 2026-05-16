@@ -147,7 +147,46 @@ const BRAIN_TOOLS = [
       required: ['provider', 'question'],
     },
   },
+
+  // ── Desktop-bridge tools — only work when the user has the JARVIS
+  // Electron app running locally and the WebSocket bridge has connected.
+  {
+    name: 'open_file',
+    description: 'Open a local file on the user\'s Mac with the default app. Use when the user asks to open a specific file or path.',
+    input_schema: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path, or starting with ~/' } }, required: ['path'] },
+  },
+  {
+    name: 'run_shell',
+    description: 'Execute a non-destructive shell command on the user\'s Mac. Dangerous commands (rm -rf, sudo, network reconfig) are refused server-side. Use sparingly — prefer dedicated tools.',
+    input_schema: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+  },
+  {
+    name: 'take_screenshot',
+    description: 'Capture the user\'s screen as a PNG. The image is shown to the user inline. Use when the user asks "screenshot" / "screen" / "what\'s on my screen".',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_clipboard',
+    description: 'Read the current contents of the user\'s clipboard. Use when the user references "what I just copied" / "my clipboard".',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_clipboard',
+    description: 'Replace the user\'s clipboard contents with the given text.',
+    input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+  },
 ];
+
+// Tools that need the user's Mac (Electron WebSocket bridge). When
+// `desktop_connected` is true on the request we emit them as
+// `local_command` actions for the browser to forward. When false we
+// return a structured error so Claude can apologise instead of pretending
+// it ran them.
+const LOCAL_TOOLS = new Set([
+  'open_app', 'open_url', 'open_file', 'run_shell',
+  'take_screenshot', 'get_clipboard', 'set_clipboard',
+  'web_search_open', 'youtube_play', 'twitch_open_channel',
+]);
 
 const APP_ALIASES = {
   'safari':'Safari','chrome':'Google Chrome','google chrome':'Google Chrome','firefox':'Firefox',
@@ -160,7 +199,38 @@ const APP_ALIASES = {
   'facetime':'FaceTime','jarvis':'JARVIS',
 };
 
-async function execBrainTool(userId, name, input, uiActions) {
+async function execBrainTool(userId, name, input, uiActions, ctx = {}) {
+  // Desktop-bridge tools: route through the browser → local Electron app.
+  // The server never actually opens an app, runs shell, or reads the user's
+  // clipboard on Vercel — those have to happen on the user's machine.
+  if (LOCAL_TOOLS.has(name)) {
+    if (!ctx.desktopConnected) {
+      return {
+        error: 'desktop_required',
+        message: 'Diese Aktion benötigt die JARVIS Desktop-App. Bitte starte sie auf dem Mac.',
+      };
+    }
+    // Normalise the bridge action + payload to match wsbridge.js handlers.
+    let bridgeAction = name;
+    let payload = input || {};
+    if (name === 'open_app') {
+      const key = (input.name || '').toLowerCase().trim();
+      payload = { name: APP_ALIASES[key] || input.name };
+    } else if (name === 'web_search_open') {
+      bridgeAction = 'open_url';
+      payload = { url: 'https://www.google.com/search?q=' + encodeURIComponent(input.query || '') };
+    } else if (name === 'youtube_play') {
+      bridgeAction = 'open_url';
+      payload = { url: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(input.query || '') };
+    } else if (name === 'twitch_open_channel') {
+      const ch = (input.channel || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      bridgeAction = 'open_url';
+      payload = { url: 'https://www.twitch.tv/' + ch };
+    }
+    uiActions.push({ type: 'local_command', action: bridgeAction, payload });
+    return { ok: true, queued: true, via: 'desktop_bridge' };
+  }
+
   try {
     if (name === 'open_app') {
       const key = (input.name || '').toLowerCase().trim();
@@ -340,6 +410,11 @@ module.exports = async (req, res) => {
   // Gemini Flash Lite, Mistral Small. Cuts LLM latency 2–4×.
   // Ultra mode (debate.js) keeps the slow/smart tier for quality.
   const tier     = body.tier || 'fast';
+  // Did the browser report a live WebSocket bridge to the Electron app?
+  // If yes, local_command actions are forwarded there; if no, they are
+  // refused with a desktop_required error so Claude apologises instead
+  // of pretending to have run them.
+  const desktopConnected = !!body.desktop_connected;
   const providers = availableProviders();
 
   try {
@@ -376,7 +451,7 @@ module.exports = async (req, res) => {
       const toolResults = [];
       for (const tc of result.toolCalls) {
         console.log('[brain/chat] tool_use', tc.name, JSON.stringify(tc.input).slice(0, 120));
-        const r = await execBrainTool(user.id, tc.name, tc.input, uiActions);
+        const r = await execBrainTool(user.id, tc.name, tc.input, uiActions, { desktopConnected });
         toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(r) });
       }
       history.push({ role: 'user', content: toolResults });

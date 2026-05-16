@@ -25,6 +25,7 @@ const notifs     = require('./services/notifications');
 const perms      = require('./services/permissions');
 const updater    = require('./services/updater');
 const license    = require('./services/license');
+const wsbridge   = require('./services/wsbridge');
 // New integrations
 const imessage   = require('./services/imessage');
 const contacts   = require('./services/contacts');
@@ -611,6 +612,11 @@ app.whenReady().then(() => {
   // Load persisted API keys into process.env (must run after app is ready)
   configSvc.applyToEnv();
 
+  // Local-only WebSocket bridge so the daylens.dev/brain browser app can
+  // proxy Mac-level actions (open_app, shell, screenshot, clipboard) into
+  // this Electron process. Loopback bind only.
+  try { wsbridge.start(); } catch (e) { console.error('[main] wsbridge boot failed:', e?.message); }
+
   createWindow();
   createTray();
   globalShortcut.register('CommandOrControl+Shift+J', toggleWindow);
@@ -655,7 +661,10 @@ app.whenReady().then(() => {
   }, 2000);
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  try { wsbridge.stop(); } catch {}
+});
 
 // In dev mode skip single-instance lock so `npm run dev` always works
 // even when a previous dev session left a ghost process behind.

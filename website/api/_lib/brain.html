@@ -178,6 +178,101 @@
     border-radius: 50%; background: rgba(0, 220, 255, 0.5);
     animation: pulse-marker 1.6s infinite;
   }
+
+  /* Desktop-bridge status badge (top-right, above ULTRA + ENABLE VOICE) */
+  #desktop-badge {
+    position: fixed;
+    top: 24px; right: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    background: rgba(0, 30, 50, 0.55);
+    border: 1px solid var(--cyan-soft);
+    border-radius: 99px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--bright);
+    cursor: pointer;
+    z-index: 6;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #desktop-badge:hover { background: rgba(0, 60, 90, 0.7); }
+  #desktop-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #6b7280;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  #desktop-badge.connected .dot {
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
+  }
+  #desktop-badge.connecting .dot {
+    background: #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  /* Hide the badge from blocking the existing mic/ultra row by stacking */
+  /* mic-btn is at top: 24px, right: 24px — push it left when badge present */
+  body.has-desktop-badge #mic-btn { right: 24px; top: 60px; }
+  body.has-desktop-badge #ultra-btn { right: 168px; top: 60px; }
+
+  /* Feature availability popover */
+  #desktop-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #desktop-modal.open { display: flex; }
+  #desktop-modal-card {
+    background: rgba(8, 16, 22, 0.96);
+    border: 1px solid var(--cyan-soft);
+    border-radius: 14px;
+    padding: 28px 28px 22px;
+    max-width: 460px; width: 100%;
+    color: var(--bright);
+    font-family: inherit;
+    box-shadow: 0 30px 70px rgba(0,0,0,0.6), 0 0 40px rgba(0, 220, 255, 0.1);
+  }
+  #desktop-modal h2 {
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    color: var(--cyan);
+    margin: 0 0 14px;
+    text-transform: uppercase;
+  }
+  #desktop-modal p { font-size: 13px; line-height: 1.6; margin-bottom: 18px; color: #a0c8da; }
+  #desktop-modal ul { list-style: none; padding: 0; margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+  #desktop-modal li {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--bright);
+  }
+  #desktop-modal li .ic { font-weight: 700; width: 16px; text-align: center; }
+  #desktop-modal li .ic.on  { color: #22c55e; }
+  #desktop-modal li .ic.off { color: #6b7280; }
+  #desktop-modal .download-row {
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(0, 220, 255, 0.15);
+    font-size: 12px; color: #7aa2b8;
+  }
+  #desktop-modal .download-row a { color: var(--cyan); }
+  #desktop-modal-close {
+    background: transparent; border: 1px solid var(--cyan-soft); color: var(--bright);
+    padding: 8px 18px; border-radius: 99px;
+    font-family: inherit; font-size: 11px; letter-spacing: 0.16em;
+    cursor: pointer; text-transform: uppercase;
+    margin-top: 4px;
+  }
+  #desktop-modal-close:hover { background: rgba(0, 60, 90, 0.5); }
 </style>
 </head>
 <body>
@@ -186,10 +281,27 @@
   <div id="hint">
     <b>OPEN</b> YOUTUBE · <b>MAP OF</b> LONDON · <b>ASK GEMINI</b> X · <b>ULTRA MODE</b> · <b>REMEMBER</b> X
   </div>
+  <div id="desktop-badge" class="disconnected" title="Klicken für Details">
+    <span class="dot"></span>
+    <span id="desktop-badge-text">Nur Browser-Modus</span>
+  </div>
   <button id="ultra-btn">◌ ULTRA MODE</button>
   <button id="mic-btn">◉ ENABLE VOICE</button>
   <div id="status" class="idle"><span class="dot"></span><span id="status-text">STANDBY</span></div>
   <div id="jarvis-badge">JARVIS</div>
+
+  <div id="desktop-modal">
+    <div id="desktop-modal-card">
+      <h2 id="desktop-modal-title">Desktop-Verbindung</h2>
+      <p id="desktop-modal-body"></p>
+      <ul id="desktop-feature-list"></ul>
+      <div class="download-row" id="desktop-modal-download" style="display:none;">
+        Desktop-App noch nicht installiert? Lade sie unter
+        <a href="/#pricing" target="_blank">daylens.dev</a> herunter.
+      </div>
+      <button id="desktop-modal-close">Schließen</button>
+    </div>
+  </div>
 
   <div id="chat-pane">
     <div class="chat-box">
@@ -650,7 +762,10 @@ async function askJarvis(text) {
   let debate = null;
   try {
     const endpoint = _ultraMode ? '/api/brain/debate' : '/api/brain/chat';
-    const payload = { messages: _chatHistory.slice(-4) };
+    const payload = {
+      messages: _chatHistory.slice(-4),
+      desktop_connected: desktop.isConnected(),
+    };
     if (_explicitProvider) { payload.provider = _explicitProvider; _explicitProvider = null; }
     const r = await fetchWithRetry(endpoint, payload);
     if (r.status === 401) {
@@ -666,6 +781,7 @@ async function askJarvis(text) {
       for (const a of (j.actions || [])) {
         if (a.type === 'map' && a.city)  openMap(a.city);
         if (a.type === 'chat')           openChat();
+        if (a.type === 'local_command')  handleLocalCommand(a);
       }
     } else {
       console.error('[askJarvis] server error', r.status);
@@ -688,6 +804,46 @@ async function askJarvis(text) {
   setMode('speaking', 'SPEAKING');
   await speak(reply);
   setMode('idle', 'STANDBY');
+}
+
+// Execute a local_command action on the Electron app via the WebSocket
+// bridge. Server marks these actions as "Mac-only" — we run them here
+// because the server can't reach the user's machine on Vercel.
+async function handleLocalCommand(a) {
+  if (!a.action) return;
+  if (!desktop.isConnected()) {
+    addMessage('bot', '⚠️ Diese Funktion benötigt die JARVIS Desktop-App. Bitte starte die App auf deinem Mac.');
+    return;
+  }
+  try {
+    const result = await desktop.send(a.action, a.payload || {});
+    // Data-returning actions: surface the result inline.
+    if (a.action === 'take_screenshot' && result?.png_base64) {
+      const img = document.createElement('img');
+      img.src = 'data:image/png;base64,' + result.png_base64;
+      img.style.cssText = 'max-width:100%;border-radius:6px;border:1px solid rgba(0,220,255,0.2);margin-top:6px;';
+      const wrap = document.createElement('div');
+      wrap.className = 'msg bot';
+      wrap.appendChild(img);
+      $messages.appendChild(wrap);
+      $messages.scrollTop = $messages.scrollHeight;
+    } else if (a.action === 'get_clipboard') {
+      addMessage('bot', '📋 Clipboard: ' + (result?.text || '(leer)'));
+    } else if (a.action === 'run_shell' && result?.output) {
+      const out = String(result.output).slice(0, 600);
+      const wrap = document.createElement('div');
+      wrap.className = 'msg bot';
+      wrap.style.cssText = 'font-family:JetBrains Mono,Menlo,monospace;font-size:11px;white-space:pre-wrap;background:rgba(0,30,40,0.5);';
+      wrap.textContent = out;
+      $messages.appendChild(wrap);
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+    // Fire-and-forget actions (open_app, open_url, open_file, set_clipboard)
+    // get no inline echo — Claude's text reply already confirmed.
+  } catch (e) {
+    console.error('[local_command]', a.action, e);
+    addMessage('bot', `⚠️ Befehl "${a.action}" fehlgeschlagen: ${e.message}`);
+  }
 }
 
 // Show the three AI answers underneath the JARVIS reply when ultra mode ran.
@@ -819,6 +975,155 @@ function speak(fullText) {
     if (!cancelled) resolve();
   });
 }
+
+
+// ── Desktop bridge (WebSocket → local Electron app on ws://127.0.0.1:7777) ──
+// Lets us proxy Mac-level actions (open_app / shell / screenshot / clipboard)
+// into the user's local JARVIS app. When connected, server-emitted
+// `local_command` actions in chat responses are forwarded here.
+const desktop = (() => {
+  const URL_LOCAL = 'ws://127.0.0.1:7777';
+  let socket = null;
+  let state  = 'disconnected';   // 'disconnected' | 'connecting' | 'connected'
+  let actions = [];               // list reported by the bridge in its hello frame
+  let reconnectDelay = 1000;      // exponential backoff, capped
+  let reconnectTimer = null;
+  const pending = new Map();      // id → { resolve, reject, timeout }
+  let nextId = 1;
+
+  const $badge      = document.getElementById('desktop-badge');
+  const $badgeText  = document.getElementById('desktop-badge-text');
+  const $modal      = document.getElementById('desktop-modal');
+  const $modalTitle = document.getElementById('desktop-modal-title');
+  const $modalBody  = document.getElementById('desktop-modal-body');
+  const $modalList  = document.getElementById('desktop-feature-list');
+  const $modalDl    = document.getElementById('desktop-modal-download');
+
+  document.body.classList.add('has-desktop-badge');
+
+  function setState(s) {
+    state = s;
+    $badge.classList.remove('connected', 'connecting', 'disconnected');
+    $badge.classList.add(s);
+    $badgeText.textContent =
+      s === 'connected'  ? 'Desktop verbunden' :
+      s === 'connecting' ? 'Verbinde…'         :
+                           'Nur Browser-Modus';
+  }
+
+  function connect() {
+    if (socket && socket.readyState <= 1) return;  // CONNECTING or OPEN
+    setState('connecting');
+    let s;
+    try {
+      s = new WebSocket(URL_LOCAL);
+    } catch (e) {
+      console.warn('[desktop] WebSocket constructor failed:', e?.message);
+      scheduleReconnect();
+      return;
+    }
+    socket = s;
+
+    s.onopen = () => {
+      console.log('[desktop] connected to bridge');
+      reconnectDelay = 1000;
+    };
+    s.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.type === 'hello') {
+        actions = Array.isArray(msg.actions) ? msg.actions : [];
+        setState('connected');
+        return;
+      }
+      // Response to a sent action.
+      if (msg.id && pending.has(msg.id)) {
+        const { resolve, reject, timeout } = pending.get(msg.id);
+        clearTimeout(timeout);
+        pending.delete(msg.id);
+        if (msg.ok) resolve(msg.result || {}); else reject(new Error(msg.error || 'bridge error'));
+      }
+    };
+    s.onclose = (ev) => {
+      console.warn('[desktop] bridge closed:', ev.code, ev.reason);
+      socket = null;
+      setState('disconnected');
+      // Reject any pending requests so callers get unblocked.
+      for (const { reject, timeout } of pending.values()) {
+        clearTimeout(timeout);
+        reject(new Error('bridge disconnected'));
+      }
+      pending.clear();
+      scheduleReconnect();
+    };
+    s.onerror = () => { /* onclose handles the user-facing side */ };
+  }
+
+  function scheduleReconnect() {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+  }
+
+  function isConnected() { return state === 'connected'; }
+
+  // send(action, payload) — resolves with result, rejects on bridge error/timeout.
+  function send(action, payload, { timeoutMs = 10_000 } = {}) {
+    return new Promise((resolve, reject) => {
+      if (!isConnected() || !socket) {
+        reject(new Error('desktop bridge not connected'));
+        return;
+      }
+      const id = String(nextId++);
+      const timeout = setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          reject(new Error(`bridge action "${action}" timed out`));
+        }
+      }, timeoutMs);
+      pending.set(id, { resolve, reject, timeout });
+      try {
+        socket.send(JSON.stringify({ id, action, payload: payload || null }));
+      } catch (e) {
+        clearTimeout(timeout);
+        pending.delete(id);
+        reject(e);
+      }
+    });
+  }
+
+  // Click badge → modal with capabilities.
+  $badge.addEventListener('click', () => {
+    const connected = isConnected();
+    $modalTitle.textContent = connected ? 'Desktop verbunden' : 'Nur Browser-Modus';
+    $modalBody.textContent  = connected
+      ? 'Die JARVIS Desktop-App ist verbunden. Folgende Mac-Aktionen stehen JARVIS zur Verfügung:'
+      : 'Die JARVIS Desktop-App ist nicht erreichbar. JARVIS kann im Browser sprechen und denken, aber keine Mac-Aktionen ausführen. Starte die App auf deinem Mac und versuche es erneut.';
+    const all = ['open_app','open_url','open_file','run_shell','take_screenshot','get_clipboard','set_clipboard'];
+    $modalList.innerHTML = '';
+    for (const a of all) {
+      const li = document.createElement('li');
+      const ok = connected && actions.includes(a);
+      li.innerHTML = `<span class="ic ${ok ? 'on' : 'off'}">${ok ? '✓' : '✗'}</span>${a}`;
+      $modalList.appendChild(li);
+    }
+    $modalDl.style.display = connected ? 'none' : 'block';
+    $modal.classList.add('open');
+  });
+
+  document.getElementById('desktop-modal-close').addEventListener('click', () => {
+    $modal.classList.remove('open');
+  });
+  $modal.addEventListener('click', (e) => {
+    if (e.target === $modal) $modal.classList.remove('open');
+  });
+
+  // Start the connection attempt.
+  setState('disconnected');
+  connect();
+
+  return { isConnected, send };
+})();
 
 
 // ── Speech-to-text via MediaRecorder + /api/brain/transcribe (Whisper) ──

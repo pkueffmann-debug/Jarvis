@@ -2,5 +2,10 @@
   "rewrites": [
     { "source": "/brain",  "destination": "/api/brain" },
     { "source": "/brain/", "destination": "/api/brain" }
-  ]
+  ],
+  "functions": {
+    "api/brain.js": {
+      "includeFiles": "api/_lib/brain.html"
+    }
+  }
 }

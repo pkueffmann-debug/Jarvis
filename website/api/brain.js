@@ -69,7 +69,9 @@ module.exports = async (req, res) => {
     }
 
     // ── 4) Serve the brain page ──────────────────────────────────────
-    const htmlPath = path.join(process.cwd(), 'brain', 'index.html');
+    // HTML lives in api/_lib/ so Vercel doesn't serve it as a static file
+    // (which would bypass the auth gate). The function reads it from disk.
+    const htmlPath = path.join(__dirname, '_lib', 'brain.html');
     const html = fs.readFileSync(htmlPath, 'utf8');
 
     res.statusCode = 200;

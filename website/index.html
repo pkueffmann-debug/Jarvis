@@ -200,17 +200,7 @@
       transform: translateY(8px);
       will-change: transform, opacity, filter;
     }
-    .statement-cursor {
-      display: inline-block;
-      width: 0.08em;
-      height: 0.85em;
-      vertical-align: -0.08em;
-      margin-left: 0.06em;
-      background: var(--cyan);
-      box-shadow: 0 0 18px var(--cyan), 0 0 36px rgba(34,211,238,0.6);
-      animation: blink 0.95s steps(2, start) infinite;
-      opacity: 0;
-    }
+    .statement-cursor { display: none; }
     @keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
     .statement-particles {
       position: absolute;

@@ -45,8 +45,8 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      width: 100%; max-width: 420px;
-      padding: 36px 32px;
+      width: 100%; max-width: 460px;
+      padding: 36px 28px;
       display: flex; flex-direction: column; gap: 18px;
       box-shadow: 0 24px 60px rgba(0,0,0,0.4);
     }
@@ -105,17 +105,17 @@
     /* OTP boxes — iPhone-2FA style */
     .otp {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       justify-content: center;
       margin: 8px 0 4px;
     }
     .otp-box {
-      width: 48px; height: 56px;
+      width: 42px; height: 52px;
       background: var(--surface-2);
       border: 1px solid var(--border-2);
-      border-radius: 12px;
+      border-radius: 10px;
       color: var(--text);
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       text-align: center;
       font-family: 'Inter', sans-serif;
@@ -154,9 +154,14 @@
     .resend-hint .timer { color: var(--text-2); }
     .resend-hint a.resend.disabled { color: var(--text-3); pointer-events: none; }
 
-    @media (max-width: 420px) {
-      .otp { gap: 7px; }
-      .otp-box { width: 42px; height: 52px; font-size: 22px; }
+    @media (max-width: 460px) {
+      .card { padding: 30px 18px; }
+      .otp { gap: 5px; }
+      .otp-box { width: 34px; height: 46px; font-size: 18px; border-radius: 8px; }
+    }
+    @media (max-width: 340px) {
+      .otp { gap: 4px; }
+      .otp-box { width: 30px; height: 42px; font-size: 16px; }
     }
   </style>
 </head>
@@ -168,7 +173,7 @@
     <!-- ── STEP 1 — Email entry ───────────────────────────────────────── -->
     <div id="view-email" class="view active">
       <h1 class="card-title">Anmelden</h1>
-      <p class="card-subtitle">Wir schicken dir einen 6-stelligen Code per E-Mail.</p>
+      <p class="card-subtitle">Wir schicken dir einen 8-stelligen Code per E-Mail.</p>
       <div class="msg" id="email-msg"></div>
       <div class="form-group">
         <label>E-Mail</label>
@@ -184,16 +189,18 @@
     <!-- ── STEP 2 — OTP entry ─────────────────────────────────────────── -->
     <div id="view-otp" class="view">
       <h1 class="card-title">Code eingeben</h1>
-      <p class="card-subtitle">Wir haben einen 6-stelligen Code an <strong id="otp-target"></strong> geschickt.</p>
+      <p class="card-subtitle">Wir haben einen 8-stelligen Code an <strong id="otp-target"></strong> geschickt.</p>
       <div class="msg" id="otp-msg"></div>
 
-      <div class="otp" id="otp-boxes" aria-label="6-stelliger Bestätigungscode">
+      <div class="otp" id="otp-boxes" aria-label="8-stelliger Bestätigungscode">
         <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 1">
         <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 2">
         <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 3">
         <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 4">
         <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 5">
         <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 6">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 7">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Stelle 8">
       </div>
 
       <button class="btn" id="verify-btn" disabled>Bestätigen</button>
@@ -340,7 +347,7 @@ function clearCode() {
   updateVerifyEnabled();
 }
 function updateVerifyEnabled() {
-  verifyBtn.disabled = readCode().length !== 6;
+  verifyBtn.disabled = readCode().length !== 8;
 }
 
 otpBoxes.forEach((box, idx) => {
@@ -355,8 +362,8 @@ otpBoxes.forEach((box, idx) => {
       otpBoxes[idx + 1].focus();
     }
     updateVerifyEnabled();
-    // Auto-verify when all 6 filled.
-    if (readCode().length === 6) verifyCode();
+    // Auto-verify when all 8 filled.
+    if (readCode().length === 8) verifyCode();
   });
 
   box.addEventListener('keydown', (e) => {
@@ -373,13 +380,13 @@ otpBoxes.forEach((box, idx) => {
     } else if (e.key === 'ArrowRight' && idx < otpBoxes.length - 1) {
       otpBoxes[idx + 1].focus();
     } else if (e.key === 'Enter') {
-      if (readCode().length === 6) verifyCode();
+      if (readCode().length === 8) verifyCode();
     }
   });
 
   box.addEventListener('paste', (e) => {
     const text = (e.clipboardData || window.clipboardData).getData('text');
-    const digits = (text || '').replace(/\D/g, '').slice(0, 6);
+    const digits = (text || '').replace(/\D/g, '').slice(0, 8);
     if (!digits) return;
     e.preventDefault();
     otpBoxes.forEach((b, i) => {
@@ -389,7 +396,7 @@ otpBoxes.forEach((box, idx) => {
     const lastIdx = Math.min(digits.length, otpBoxes.length) - 1;
     otpBoxes[lastIdx].focus();
     updateVerifyEnabled();
-    if (digits.length === 6) verifyCode();
+    if (digits.length === 8) verifyCode();
   });
 
   box.addEventListener('focus', () => box.select());
@@ -397,7 +404,7 @@ otpBoxes.forEach((box, idx) => {
 
 async function verifyCode() {
   const token = readCode();
-  if (token.length !== 6) return;
+  if (token.length !== 8) return;
   hideMsg('otp-msg');
   otpRow.classList.remove('error');
 

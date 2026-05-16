@@ -186,8 +186,8 @@
       will-change: transform;
       display: inline-block;
       position: relative;
-      white-space: nowrap;
       max-width: 100%;
+      overflow-wrap: anywhere;
     }
     .statement-text.muted { color: var(--text-3); }
     .statement-text .grad {
@@ -1028,18 +1028,73 @@
 
     /* MOBILE */
     @media (max-width: 768px) {
+      .navbar { padding: 0 16px; height: 60px; }
+      .navbar-logo { font-size: 16px; }
       .navbar-links { display: none; }
       .hamburger { display: flex; }
-      .mobile-nav { display: flex; }
+      .mobile-nav { display: flex; top: 60px; padding: 20px 24px; }
+      .navbar .btn-primary { padding: 8px 14px; font-size: 13px; }
+
+      /* Hero — title smaller, sub line tighter, scroll cue closer in */
+      .hero { padding: 0 18px; }
       .hero-content { margin-top: 14vh; }
-      .statement { min-height: 80vh; padding: 0 24px; }
-      .product { padding: 80px 16px; }
+      .hero-title { font-size: clamp(32px, 9vw, 64px); margin-bottom: 14px; }
+      .hero-sub { font-size: 14px; margin-bottom: 40px; }
+      .scroll-cue { bottom: 28px; font-size: 11px; letter-spacing: 0.14em; }
+
+      /* Statements — allow wrap, smaller min font, less padding */
+      .statement { min-height: 80vh; padding: 0 20px; }
+      .statement-text {
+        font-size: clamp(34px, 11vw, 80px);
+        white-space: normal;
+        line-height: 1;
+      }
+
+      /* Product mock — switch to 4/3 so the brain UI fits vertically */
+      .product { padding: 70px 16px; min-height: auto; }
+      .product-mock { aspect-ratio: 4/3; }
+
+      /* How it works — vertical scroll with reduced padding */
       .how-pin { height: auto; }
-      .how-track { flex-direction: column; padding: 80px 24px; gap: 80px; }
+      .how-track { flex-direction: column; padding: 60px 20px; gap: 60px; }
       .how-step { flex: 1; width: 100%; }
-      .compare { padding: 100px 24px; }
-      .compare-stage { aspect-ratio: 1; max-height: 500px; }
-      .pricing-wrap, .testimonials, .founder { padding: 100px 20px; }
+
+      /* Compare matrix — denser cells, smaller font, less min-width */
+      .compare { padding: 80px 18px; }
+      .compare-table-wrap { border-radius: 12px; }
+      .compare-table { min-width: 540px; font-size: 11px; }
+      .compare-table th, .compare-table td { padding: 11px 8px; }
+      .compare-table th.feat, .compare-table td.feat { min-width: 160px; padding-left: 14px; }
+      .compare-table th.col-jarvis .logo { font-size: 14px; }
+      .mark-cell { width: 22px; height: 22px; font-size: 12px; }
+
+      /* Section paddings — uniform mobile rhythm */
+      .pricing-wrap { padding: 80px 16px; }
+      .testimonials { padding: 80px 18px; }
+      .founder      { padding: 90px 18px 80px; }
+      .pricing-inner .section-title,
+      .compare-head h2,
+      .founder-head h2,
+      .testimonials .section-title { font-size: clamp(26px, 7vw, 40px); }
+      .section-sub, .compare-head p, .founder-head p { font-size: 15px; }
+
+      /* Cards — slimmer side padding */
+      .price-card     { padding: 28px 22px; }
+      .founder-card   { padding: 26px 22px; }
+      .testi-card     { padding: 40px 24px 28px; }
+
+      /* Founder team — keep CTA tight */
+      .founder-grid { gap: 18px; margin-bottom: 56px; }
+      .founder-cta { padding: 16px 28px; font-size: 15px; }
+    }
+
+    /* Extra-tight breakpoint for very small phones (≤ 380 px) */
+    @media (max-width: 380px) {
+      .hero-title { font-size: clamp(28px, 9vw, 52px); }
+      .statement-text { font-size: clamp(30px, 11vw, 64px); }
+      .compare-table { min-width: 480px; }
+      .navbar .btn-primary { padding: 7px 12px; font-size: 12px; }
+      .navbar .btn-primary svg { display: none; }
     }
 
     /* Reduced motion respect */

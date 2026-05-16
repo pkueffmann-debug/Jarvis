@@ -177,7 +177,7 @@
       will-change: transform;
     }
     .statement-text {
-      font-size: clamp(48px, 10vw, 180px);
+      font-size: clamp(40px, 9vw, 160px);
       font-weight: 900;
       line-height: 0.95;
       letter-spacing: -0.04em;
@@ -186,6 +186,8 @@
       will-change: transform;
       display: inline-block;
       position: relative;
+      white-space: nowrap;
+      max-width: 100%;
     }
     .statement-text.muted { color: var(--text-3); }
     .statement-text .grad {
@@ -225,6 +227,23 @@
       opacity: 0;
       pointer-events: none;
     }
+    .snake-line {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+      overflow: visible;
+    }
+    .snake-line path {
+      fill: none;
+      stroke: url(#snakeGradient);
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 8px rgba(34,211,238,0.85)) drop-shadow(0 0 22px rgba(99,102,241,0.55));
+    }
+    .statement-inner { z-index: 2; position: relative; }
 
     /* ───────── SECTION 3 — PRODUCT VISUAL ───────── */
     .product {
@@ -1096,19 +1115,31 @@
 
 <!-- SECTION 2 — STATEMENTS -->
 <section class="statements" id="statements">
+  <svg width="0" height="0" style="position:absolute;pointer-events:none;">
+    <defs>
+      <linearGradient id="snakeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#22D3EE"/>
+        <stop offset="50%"  stop-color="#818CF8"/>
+        <stop offset="100%" stop-color="#22D3EE"/>
+      </linearGradient>
+    </defs>
+  </svg>
   <div class="statement">
+    <svg class="snake-line" preserveAspectRatio="none" viewBox="0 0 1200 600"><path d=""/></svg>
     <div class="statement-particles"></div>
     <div class="statement-inner">
       <h2 class="statement-text muted" data-text="Kein Suchen mehr."></h2>
     </div>
   </div>
   <div class="statement">
+    <svg class="snake-line" preserveAspectRatio="none" viewBox="0 0 1200 600"><path d=""/></svg>
     <div class="statement-particles"></div>
     <div class="statement-inner">
       <h2 class="statement-text muted" data-text="Kein Klicken mehr."></h2>
     </div>
   </div>
   <div class="statement">
+    <svg class="snake-line" preserveAspectRatio="none" viewBox="0 0 1200 600"><path d=""/></svg>
     <div class="statement-particles"></div>
     <div class="statement-inner">
       <h2 class="statement-text" data-text="Nur sprechen." data-accent="sprechen"></h2>
@@ -1687,6 +1718,57 @@ function toggleNav() { document.getElementById('mobileNav').classList.toggle('op
       onLeaveBack: () => {
         gsap.set(cursor, { opacity: 0 });
         gsap.to(chars, { opacity: 0, y: 8, duration: 0.3 });
+      }
+    });
+  });
+})();
+
+// Section 2b: snake-line that draws itself around the statement text on scroll.
+(function snakeLines() {
+  const sections = document.querySelectorAll('.statement');
+  if (!sections.length) return;
+
+  function buildPath(width, height, segments = 7, amp = 0.34) {
+    // Snake path: starts at left-mid, weaves up/down across `segments`
+    // peaks, ends at right-mid. Amplitude tapers near edges.
+    const cy = height / 2;
+    const ampPx = height * amp;
+    const points = [];
+    for (let i = 0; i <= segments; i++) {
+      const x = (i / segments) * width;
+      const y = cy + Math.sin(i * 1.45 + 0.6) * ampPx * (1 - Math.abs(i / segments - 0.5) * 0.4);
+      points.push({ x, y });
+    }
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i], p2 = points[i + 1];
+      const dx = (p2.x - p1.x) / 2;
+      d += ` C ${(p1.x + dx).toFixed(1)} ${p1.y.toFixed(1)}, ${(p2.x - dx).toFixed(1)} ${p2.y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+    return d;
+  }
+
+  sections.forEach((sect, idx) => {
+    const svg  = sect.querySelector('.snake-line');
+    if (!svg) return;
+    const path = svg.querySelector('path');
+    const W = 1200, H = 600;
+    const segments = [6, 8, 7][idx % 3];
+    const amp      = [0.32, 0.38, 0.34][idx % 3];
+    path.setAttribute('d', buildPath(W, H, segments, amp));
+
+    const len = path.getTotalLength();
+    path.style.strokeDasharray  = len;
+    path.style.strokeDashoffset = len;
+
+    ScrollTrigger.create({
+      trigger: sect,
+      start: 'top bottom',
+      end:   'bottom top',
+      scrub: 0.4,
+      onUpdate: (self) => {
+        const p = Math.min(1, self.progress / 0.55);
+        path.style.strokeDashoffset = len * (1 - p);
       }
     });
   });

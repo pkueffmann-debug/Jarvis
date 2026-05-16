@@ -26,7 +26,10 @@
       --radius-card: 16px;
       --radius-btn: 10px;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
     html { scroll-behavior: smooth; background: var(--bg); }
     body {
       font-family: 'Inter', -apple-system, sans-serif;
@@ -37,7 +40,10 @@
       position: relative;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
+    button, a, .btn, .price-btn, .founder-cta, .hamburger,
+    .pt-switch, .testi-card, .price-card, .founder-card { touch-action: manipulation; }
 
     /* Stars background — fixed, behind everything */
     #stars {
@@ -91,6 +97,7 @@
     .hero {
       position: relative;
       min-height: 100vh;
+      min-height: 100dvh; /* iOS Safari: dynamic viewport height accounts for URL bar */
       display: flex; align-items: center; justify-content: center;
       flex-direction: column;
       padding: 0 24px;
@@ -167,6 +174,7 @@
     .statements { position: relative; z-index: 2; }
     .statement {
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex; align-items: center; justify-content: center;
       padding: 0 6vw;
       position: relative;
@@ -573,6 +581,32 @@
       border-radius: var(--radius-card);
       background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.005));
       overflow: hidden;
+    }
+    /* Fade-out hint on the right edge when the table is scrollable */
+    .compare-table-wrap::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 32px;
+      background: linear-gradient(90deg, transparent, var(--bg-2));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .compare-table-wrap.scrollable::after { opacity: 1; }
+    .compare-swipe-hint {
+      display: none;
+      text-align: center;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--text-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      animation: swipe-bounce 1.8s ease-in-out infinite;
+    }
+    @keyframes swipe-bounce {
+      0%, 100% { transform: translateX(0); opacity: 0.5; }
+      50%      { transform: translateX(6px); opacity: 1; }
     }
     .compare-table-scroll {
       overflow-x: auto;
@@ -1067,6 +1101,7 @@
       .compare-table th.feat, .compare-table td.feat { min-width: 160px; padding-left: 14px; }
       .compare-table th.col-jarvis .logo { font-size: 14px; }
       .mark-cell { width: 22px; height: 22px; font-size: 12px; }
+      .compare-swipe-hint { display: block; }
 
       /* Section paddings — uniform mobile rhythm */
       .pricing-wrap { padding: 80px 16px; }
@@ -1375,6 +1410,8 @@
       </table>
     </div>
   </div>
+
+  <p class="compare-swipe-hint">← Wischen zum Vergleichen →</p>
 
   <p class="compare-bottom">
     <strong>JARVIS</strong> ist der einzige Assistent der deinen Mac wirklich versteht.
@@ -1989,6 +2026,21 @@ gsap.fromTo('.compare-bottom', { opacity: 0, y: 20 }, {
   opacity: 1, y: 0, duration: 0.9, ease: 'power3.out',
   scrollTrigger: { trigger: '.compare-bottom', start: 'top 90%' }
 });
+
+// Compare table — only show the right-edge fade when it actually scrolls.
+(function compareScrollable() {
+  const wrap   = document.querySelector('.compare-table-wrap');
+  const scroll = document.querySelector('.compare-table-scroll');
+  if (!wrap || !scroll) return;
+  function update() {
+    const isScrollable = scroll.scrollWidth - scroll.clientWidth > 4
+                       && scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 4;
+    wrap.classList.toggle('scrollable', isScrollable);
+  }
+  update();
+  scroll.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+})();
 
 // Section 6: pricing cards scroll-in
 gsap.fromTo('.price-card', { opacity: 0, y: 60 }, {

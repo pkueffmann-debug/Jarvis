@@ -4,6 +4,9 @@
 const cookie = require('cookie');
 const { adminClient } = require('./supabase');
 
+// Owner emails always allowed past the paywall.
+const WHITELIST = new Set(['p.kueffmann@icloud.com']);
+
 // Returns { user, subscription, error? }. On any failure caller should
 // short-circuit with 401/402.
 async function authedUser(req) {
@@ -17,6 +20,10 @@ async function authedUser(req) {
   const { data, error } = await admin.auth.getUser(accessToken);
   if (error || !data?.user) return { error: 'invalid-token', status: 401 };
   const user = data.user;
+
+  if (WHITELIST.has((user.email || '').toLowerCase())) {
+    return { user, subscription: { plan: 'owner', status: 'active', current_period_end: null } };
+  }
 
   const { data: subs } = await admin
     .from('subscriptions')

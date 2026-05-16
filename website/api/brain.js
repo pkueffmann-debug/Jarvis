@@ -18,6 +18,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
+// Owner emails always allowed past the paywall.
+const WHITELIST = new Set(['p.kueffmann@icloud.com']);
+
 // One admin client (service role) for subscription lookups that bypass RLS.
 const admin = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
@@ -48,24 +51,26 @@ module.exports = async (req, res) => {
     }
     const user = userData.user;
 
-    // ── 3) Subscription lookup ────────────────────────────────────────
-    const { data: subs, error: subErr } = await admin
-      .from('subscriptions')
-      .select('plan, status, current_period_end')
-      .eq('user_id', user.id)
-      .limit(1);
+    // ── 3) Subscription lookup (skipped for owner whitelist) ──────────
+    if (!WHITELIST.has((user.email || '').toLowerCase())) {
+      const { data: subs, error: subErr } = await admin
+        .from('subscriptions')
+        .select('plan, status, current_period_end')
+        .eq('user_id', user.id)
+        .limit(1);
 
-    if (subErr) {
-      console.error('[api/brain] subscriptions lookup failed:', subErr.message);
-      return redirect(res, '/#pricing?error=lookup');
-    }
-    const sub = subs?.[0];
-    const active = sub
-      && ['trialing', 'active'].includes(sub.status)
-      && (!sub.current_period_end || new Date(sub.current_period_end) > new Date());
+      if (subErr) {
+        console.error('[api/brain] subscriptions lookup failed:', subErr.message);
+        return redirect(res, '/#pricing?error=lookup');
+      }
+      const sub = subs?.[0];
+      const active = sub
+        && ['trialing', 'active'].includes(sub.status)
+        && (!sub.current_period_end || new Date(sub.current_period_end) > new Date());
 
-    if (!active) {
-      return redirect(res, '/#pricing');
+      if (!active) {
+        return redirect(res, '/#pricing');
+      }
     }
 
     // ── 4) Serve the brain page ──────────────────────────────────────

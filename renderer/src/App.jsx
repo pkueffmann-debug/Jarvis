@@ -3,7 +3,7 @@ import Chat from './Chat';
 import Settings from './Settings';
 import WakeWord from './WakeWord';
 import Paywall from './Paywall';
-import HUD from './HUD';
+import HudCompact from './HudCompact';
 import HudWindow from './HudWindow';
 import VoiceLoop from './VoiceLoop';
 import AuthScreen from './AuthScreen';
@@ -17,7 +17,7 @@ const CHAT_H = H - HUD_H - 1; // bottom chat section height (1px divider)
 
 export default function App() {
   const [mode,          setMode]          = useState('loading'); // loading | auth | main
-  const [windowMode,    setWindowMode]    = useState('chat');    // chat | hud
+  const [windowMode,    setWindowMode]    = useState('chat');    // chat | hud | map
   const [session,       setSession]       = useState(null);
   const [ttsOn,         setTtsOn]         = useState(() => localStorage.getItem('jarvis-tts') !== 'false');
   const [wakeWordOn,    setWakeWordOn]     = useState(() => localStorage.getItem('jarvis-wakeword') === 'true');
@@ -26,6 +26,7 @@ export default function App() {
   const [licenseStatus, setLicenseStatus] = useState(null);
   const [showSettings,  setShowSettings]  = useState(false);
   const [showPaywall,   setShowPaywall]   = useState(false);
+  const [mapData,       setMapData]       = useState(null);    // { city, lat, lon } | null
   const [statusMap,     setStatusMap]     = useState({
     gmail: false, calendar: false, voice: true, memory: true, screen: true, system: true,
   });
@@ -35,14 +36,25 @@ export default function App() {
   // ── Window mode sync ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!window.jarvis?.getWindowMode) return;
-    window.jarvis.getWindowMode().then((m) => m && setWindowMode(m)).catch(() => {});
-    window.jarvis.onWindowModeChanged?.((m) => setWindowMode(m));
+    window.jarvis.getWindowMode().then((m) => {
+      console.log('[App] initial windowMode =', m);
+      if (m) setWindowMode(m);
+    }).catch(() => {});
+    window.jarvis.onWindowModeChanged?.((m) => {
+      console.log('[App] window-mode-changed received →', m);
+      setWindowMode(m);
+    });
     return () => window.jarvis.offWindowModeChanged?.();
   }, []);
+
+  useEffect(() => {
+    console.log('[App] windowMode state is now:', windowMode);
+  }, [windowMode]);
 
   const expandToChat = useCallback(() => {
     window.jarvis?.setWindowMode?.('chat');
     setWindowMode('chat');
+    setMapData(null);
   }, []);
   const collapseToHud = useCallback(() => {
     window.jarvis?.setWindowMode?.('hud');
@@ -50,6 +62,16 @@ export default function App() {
   }, []);
   const closeWindow = useCallback(() => {
     window.jarvis?.closeWindow?.();
+  }, []);
+  const openMap = useCallback(({ city, lat, lon }) => {
+    setMapData({ city, lat, lon });
+    window.jarvis?.setWindowMode?.('map');
+    setWindowMode('map');
+  }, []);
+  const closeMap = useCallback(() => {
+    setMapData(null);
+    window.jarvis?.setWindowMode?.('hud');
+    setWindowMode('hud');
   }, []);
 
   // ── Boot ───────────────────────────────────────────────────────────────────
@@ -113,10 +135,28 @@ export default function App() {
     setWakeWordOn(next);
     localStorage.setItem('jarvis-wakeword', String(next));
   }
-  const handleWakeDetected = useCallback(() => {
+  const lastGreetingAtRef = useRef(0);
+  const handleWakeDetected = useCallback(async () => {
+    console.log('[App] wake-word-detected — switching to HUD mode');
     setWakeFlash(true);
     setTimeout(() => setWakeFlash(false), 600);
     chatInputRef.current?.focus();
+    setMapData(null);
+    window.jarvis?.setWindowMode?.('hud').catch(() => {});
+    setWindowMode('hud');
+
+    // Greet on wake-word so the user gets immediate audible feedback.
+    // Rate-limit to once every 5s so rapid OWW false-positives don't spam.
+    const now = Date.now();
+    if (now - lastGreetingAtRef.current < 5000) return;
+    lastGreetingAtRef.current = now;
+    try {
+      const b64 = await window.jarvis.speak('Ja, Sir?');
+      if (b64) {
+        const audio = new Audio('data:audio/mpeg;base64,' + b64);
+        audio.play().catch(() => {});
+      }
+    } catch {}
   }, []);
 
   async function handlePaywallActivated() {
@@ -144,8 +184,8 @@ export default function App() {
     );
   }
 
-  // ── Compact HUD-only window mode ───────────────────────────────────────────
-  if (windowMode === 'hud') {
+  // ── Compact HUD-only window mode (with optional Map) ──────────────────────
+  if (windowMode === 'hud' || windowMode === 'map') {
     return (
       <>
         <WakeWord enabled={wakeWordOn} onDetected={handleWakeDetected} />
@@ -154,12 +194,14 @@ export default function App() {
           onState={setVoiceState}
           onOpenChat={expandToChat}
           onCloseChat={closeWindow}
+          onOpenMap={openMap}
+          onCloseMap={closeMap}
         />
         <HudWindow
-          statusMap={statusMap}
           voiceState={voiceState}
-          onExpand={expandToChat}
+          mapData={windowMode === 'map' ? mapData : null}
           onClose={closeWindow}
+          onCloseMap={closeMap}
         />
       </>
     );
@@ -186,11 +228,7 @@ export default function App() {
         justifyContent: 'center',
         background: 'radial-gradient(ellipse 600px 320px at 50% 50%, rgba(99,102,241,0.06) 0%, transparent 70%)',
       }}>
-        <HUD
-          statusMap={statusMap}
-          voiceState={voiceState}
-          onFocusChat={() => chatInputRef.current?.focus()}
-        />
+        <HudCompact size={HUD_H - 20} state={voiceState} />
         {/* "Back to HUD" pill — top-left, only visible in chat mode */}
         <button
           onClick={collapseToHud}

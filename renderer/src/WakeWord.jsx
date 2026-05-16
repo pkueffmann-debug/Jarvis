@@ -49,7 +49,9 @@ export default function WakeWord({ enabled, onDetected }) {
   // Listen for detection from main process
   useEffect(() => {
     if (!window.jarvis?.onWakeWordDetected) return;
+    console.log('[WakeWord] subscribing to wake-word-detected IPC');
     window.jarvis.onWakeWordDetected(() => {
+      console.log('[WakeWord] ⚡ wake-word-detected received in renderer');
       onDetected?.();
     });
     return () => window.jarvis?.offWakeWordDetected?.();
@@ -66,6 +68,14 @@ export default function WakeWord({ enabled, onDetected }) {
         const info = await window.jarvis.wakeWordStart();
         if (!info.ok) {
           console.warn('[WakeWord]', info.error);
+          return;
+        }
+        // OWW backend runs its own audio capture subprocess — the renderer
+        // does not need to stream frames. Skipping the AudioContext setup
+        // here avoids ScriptProcessorNode / GPU pipeline crashes seen on
+        // macOS Electron 28.
+        if (info.backend === 'oww') {
+          console.log('[WakeWord] OWW backend in use — renderer audio stream skipped');
           return;
         }
         if (info.frameLength) frameLen.current = info.frameLength;
@@ -117,8 +127,10 @@ export default function WakeWord({ enabled, onDetected }) {
       }
     }
 
-    start();
-    return () => { cancelled = true; stop(); };
+    // Defer audio setup so it doesn't collide with the renderer's first
+    // paint on macOS Electron 28 (causes GPU SharedImageManager faults).
+    const startTimer = setTimeout(() => { if (!cancelled) start(); }, 1500);
+    return () => { cancelled = true; clearTimeout(startTimer); stop(); };
   }, [enabled, stop]);
 
   return null; // purely logical component

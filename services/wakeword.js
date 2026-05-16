@@ -65,8 +65,15 @@ function initOWW(onDetected) {
         ready = true;
         _active = true;
       } else if (line === 'WAKE_WORD_DETECTED' && ready) {
-        console.log('[WakeWord] Hey JARVIS detected!');
-        _onDetected?.();
+        console.log('[WakeWord] Hey JARVIS detected! _onDetected type=', typeof _onDetected, 'name=', _onDetected?.name);
+        if (typeof _onDetected === 'function') {
+          try { _onDetected(); console.log('[WakeWord] _onDetected() returned cleanly'); }
+          catch (e) { console.error('[WakeWord] _onDetected() THREW:', e); }
+        } else {
+          console.warn('[WakeWord] _onDetected is NOT a function — detection dropped');
+        }
+      } else if (line === 'WAKE_WORD_DETECTED' && !ready) {
+        console.warn('[WakeWord] WAKE_WORD_DETECTED arrived but READY flag is false — dropped');
       } else if (line.startsWith('ERROR:')) {
         console.error('[WakeWord] OWW error:', line.slice(6));
       }
@@ -113,12 +120,15 @@ function initPorcupine(accessKey, onDetected) {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 function init(accessKey, onDetected) {
-  // Idempotent: if a subprocess is already running, just swap the callback.
-  // Lets us pre-warm at app boot with a no-op and bind the real handler
-  // when the renderer toggles wake-word on.
-  if (_active) {
+  console.log('[WakeWord] init() called, _active=', _active, ', _owwProcess=', !!_owwProcess, ', onDetected type=', typeof onDetected, 'name=', onDetected?.name);
+  // Idempotent: if a subprocess is already running OR booting, just swap
+  // the callback. Without the _owwProcess check we race between pre-warm
+  // (boot) and the renderer's wake-word-start call, spawning two OWW
+  // subprocesses that fight for the microphone.
+  if (_active || _owwProcess) {
     _onDetected = onDetected;
-    return { ok: true, backend: _backend, reused: true };
+    console.log('[WakeWord] init() reused — callback swapped (active=', _active, ', booting=', !!_owwProcess && !_active, ')');
+    return { ok: true, backend: _backend || 'oww', reused: true };
   }
 
   // Try OWW first (no account needed, works for every buyer)
@@ -137,9 +147,11 @@ function setCallback(onDetected) {
 }
 
 function stop() {
+  console.log('[WakeWord] stop() called from', new Error().stack.split('\n')[2]?.trim());
   if (_owwProcess) { _owwProcess.kill('SIGTERM'); _owwProcess = null; }
   if (_porcupine)  { try { _porcupine.release(); } catch {} _porcupine = null; }
   _active = false; _backend = null;
+  _onDetected = null;
   console.log('[WakeWord] Stopped.');
 }
 

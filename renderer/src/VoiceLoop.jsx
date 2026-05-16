@@ -14,7 +14,7 @@ import { useEffect, useRef, useCallback } from 'react';
  *
  * Renders nothing — purely behavioral.
  */
-export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat }) {
+export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat, onOpenMap, onCloseMap }) {
   const streamRef    = useRef(null);
   const ctxRef       = useRef(null);
   const analyserRef  = useRef(null);
@@ -41,6 +41,39 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
         || /\b(schließ|schließe|verstecke)\s+(den\s+|das\s+)?chat\b/.test(t)
         || /\bchat\s+(schließen|zu)\b/.test(t);
   };
+
+  // Map: returns the city name (string) if matched, else null.
+  // Strips trailing punctuation so "Berlin." or "Berlin?" still work.
+  const matchOpenMap = (text) => {
+    const t = text.toLowerCase().trim().replace(/[.?!,]+$/, '');
+    let m;
+    if ((m = t.match(/\b(?:zeig|zeige)\s+(?:mir\s+)?(?:die\s+)?karte\s+(?:von|aus)?\s*(.+)$/))) return m[1].trim();
+    if ((m = t.match(/\b(?:öffne|öffnen)\s+(?:die\s+)?karte\s+(?:von|aus)?\s*(.+)$/))) return m[1].trim();
+    if ((m = t.match(/\bkarte\s+(?:von|aus)\s+(.+)$/))) return m[1].trim();
+    if ((m = t.match(/\bshow\s+(?:me\s+)?(?:the\s+)?map\s+(?:of\s+)?(.+)$/))) return m[1].trim();
+    if ((m = t.match(/\bopen\s+(?:the\s+)?map\s+(?:of\s+)?(.+)$/))) return m[1].trim();
+    if ((m = t.match(/\bmap\s+of\s+(.+)$/))) return m[1].trim();
+    return null;
+  };
+  const matchCloseMap = (text) => {
+    const t = text.toLowerCase().trim();
+    return /\b(schließ|schließe)\s+(die\s+)?karte\b/.test(t)
+        || /\bkarte\s+(schließen|zu)\b/.test(t)
+        || /\bclose\s+(the\s+)?map\b/.test(t)
+        || /\bhide\s+(the\s+)?map\b/.test(t);
+  };
+
+  // Nominatim geocoding (free, no key). Best-effort — failures resolve null.
+  async function geocode(city) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'de,en' } });
+      if (!res.ok) return null;
+      const arr = await res.json();
+      if (!Array.isArray(arr) || arr.length === 0) return null;
+      return { lat: parseFloat(arr[0].lat), lon: parseFloat(arr[0].lon) };
+    } catch { return null; }
+  }
 
   // ── cleanup ─────────────────────────────────────────────────────────────
   const stopAll = useCallback(() => {
@@ -115,9 +148,9 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
     // VAD loop. Threshold is conservative — user's mic was very quiet in
     // earlier tests. Adapt: track noise floor in the first ~400ms and set
     // threshold to noise_floor * 3 (min 0.012, max 0.05).
-    const SILENCE_HANG_MS = 1500;
+    const SILENCE_HANG_MS = 700;     // submit after 0.7s of silence (was 1.5s)
     const MAX_LISTEN_MS   = 10000;
-    const MIN_SPEECH_MS   = 250;
+    const MIN_SPEECH_MS   = 220;
     const CALIBRATE_MS    = 400;
     const MIN_THRESHOLD   = 0.012;
     const MAX_THRESHOLD   = 0.05;
@@ -272,6 +305,27 @@ export default function VoiceLoop({ enabled, onState, onOpenChat, onCloseChat })
         // Voice commands take priority over Claude
         if (matchOpenChat(text))  { console.log('[VoiceLoop] cmd: open chat');  onOpenChat?.();  setState('idle'); break; }
         if (matchCloseChat(text)) { console.log('[VoiceLoop] cmd: close chat'); onCloseChat?.(); setState('idle'); break; }
+
+        // Map open: extract city, geocode, fire IPC, speak confirmation, continue loop
+        const city = matchOpenMap(text);
+        if (city) {
+          console.log('[VoiceLoop] cmd: open map →', city);
+          const coords = await geocode(city);
+          if (coords) {
+            const display = city.replace(/\b\w/g, (c) => c.toUpperCase());
+            onOpenMap?.({ city: display, lat: coords.lat, lon: coords.lon });
+            await speakAndWait(`Die Karte von ${display} ist offen, Sir.`);
+          } else {
+            await speakAndWait(`${city} konnte ich nicht finden, Sir.`);
+          }
+          continue;
+        }
+        if (matchCloseMap(text)) {
+          console.log('[VoiceLoop] cmd: close map');
+          onCloseMap?.();
+          await speakAndWait('Karte geschlossen.');
+          continue;
+        }
 
         const reply = await askClaude(text);
         if (cancelledRef.current) break;

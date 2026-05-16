@@ -78,12 +78,13 @@ ipcMain.on('confirm-action', (_e, confirmed) => {
 // ── Window ─────────────────────────────────────────────────────────────────
 
 // ── Window modes ──────────────────────────────────────────────────────────
-// "hud"  → small floating 420×420 (compact HUD circle only, voice-only flow)
-// "chat" → 900×700 (HUD on top + chat below). Wake-word opens at HUD size;
-//          user expands by clicking the HUD center or saying "open chat".
+// "hud"  → 500×500 floating HUD (Iron-Man style canvas circle, voice-only)
+// "chat" → 900×700 (HUD on top + chat below)
+// "map"  → 1300×700 (Leaflet map left, HUD shrunk to 350 right)
 const WINDOW_SIZES = {
-  hud:  { width: 420, height: 420 },
-  chat: { width: 900, height: 700 },
+  hud:  { width: 1100, height: 620 },
+  chat: { width: 900,  height: 700 },
+  map:  { width: 1300, height: 700 },
 };
 let _windowMode = 'chat';  // default for cold start; wake-word switches to 'hud'
 
@@ -93,29 +94,55 @@ function createWindow() {
     width, height,
     show: false, frame: false, resizable: false,
     center: true,
-    transparent: true, alwaysOnTop: false, skipTaskbar: false, hasShadow: false,
+    transparent: true,
+    alwaysOnTop: _windowMode === 'hud',
+    skipTaskbar: false, hasShadow: false,
+    backgroundColor: _windowMode === 'hud' ? '#000000' : undefined,
     icon: path.join(__dirname, 'assets', 'jarvis.icns'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false,
+      backgroundThrottling: false,
     },
   });
   // Reset the "activated by wake-word" gate whenever the user moves away
   // from JARVIS. The next wake-word detection is then allowed to focus us
   // again; further detections while we still hold focus are ignored.
   mainWindow.on('blur', () => { _wasActivatedByWakeWord = false; });
+
+  // Diagnostic only — we used to gate IPC on these but it caused IPCs
+  // to be permanently buffered after spurious 'render-process-gone' events.
+  mainWindow.webContents.on('did-finish-load', () => console.log('[Renderer] did-finish-load'));
+  mainWindow.webContents.on('render-process-gone', (_e, d) => console.warn('[Renderer] render-process-gone:', d.reason, JSON.stringify(d)));
+  mainWindow.webContents.on('preload-error', (_e, prelPath, err) => console.error('[Renderer] preload-error:', prelPath, err));
+  // Mirror renderer console into main terminal so we can see what JS is dying.
+  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    const levels = ['debug', 'log', 'warn', 'error'];
+    const lvl = levels[level] || 'log';
+    if (lvl === 'error' || lvl === 'warn' || message.includes('error') || message.includes('Error')) {
+      console.log(`[RendererConsole:${lvl}] ${message}  @ ${sourceId}:${line}`);
+    }
+  });
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    // Auto-open DevTools in a detached window so the tiny HUD mode (420×420)
-    // doesn't get covered by the inspector panel.
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    // DevTools auto-open turned off — open with Cmd+Opt+I when needed.
+    // Show after ready-to-show (post first paint, less GPU contention than
+    // did-finish-load which fires before AudioContext + initial paint settle).
+    mainWindow.once('ready-to-show', () => {
+      setTimeout(() => { if (!mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); } }, 200);
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
 }
 
 function setWindowMode(mode) {
-  if (!WINDOW_SIZES[mode] || !mainWindow) return { ok: false, error: 'unknown mode' };
+  console.log('[WindowMode] setWindowMode called with mode =', mode);
+  if (!WINDOW_SIZES[mode] || !mainWindow) {
+    console.log('[WindowMode] FAIL — WINDOW_SIZES[mode] =', !!WINDOW_SIZES[mode], ', mainWindow =', !!mainWindow);
+    return { ok: false, error: 'unknown mode' };
+  }
   _windowMode = mode;
   const { width, height } = WINDOW_SIZES[mode];
   // Re-center and resize. setBounds animates on macOS by default.
@@ -123,7 +150,10 @@ function setWindowMode(mode) {
   const cx = Math.round(display.workArea.x + (display.workArea.width  - width)  / 2);
   const cy = Math.round(display.workArea.y + (display.workArea.height - height) / 2);
   mainWindow.setBounds({ x: cx, y: cy, width, height }, true);
-  mainWindow.webContents.send('window-mode-changed', mode);
+  // HUD and map float on top; chat is a normal window.
+  mainWindow.setAlwaysOnTop(mode === 'hud' || mode === 'map');
+  safeSend('window-mode-changed', mode);
+  console.log('[WindowMode] resized to', width, 'x', height, 'and queued window-mode-changed for renderer');
   return { ok: true, mode };
 }
 
@@ -391,17 +421,48 @@ ipcMain.handle('history-clear', () => { memory.clearHistory(); history.length = 
 // app the user has moved to.
 let _wasActivatedByWakeWord = false;
 
-function wakeWordCallback() {
-  // Renderer IPC always fires — the in-window flash + chat input focus are
-  // harmless and useful regardless of whether JARVIS is foreground.
-  mainWindow?.webContents.send('wake-word-detected');
+// Track last wake-word focus steal so we don't yank focus on every detection.
+let _lastWakeFocusAt = 0;
 
-  if (_wasActivatedByWakeWord) return;   // already brought front this session
-  _wasActivatedByWakeWord = true;
-  // Wake word always opens the compact HUD. If user wants chat, they can
-  // click the HUD center or say "open chat".
-  setWindowMode('hud');
-  showWindow();
+function safeSend(channel, ...args) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  // Defer to the next tick. Some Electron 28 builds throw
+  // "Render frame was disposed" if send is called synchronously from
+  // certain async contexts (subprocess stdout handlers, etc.).
+  setImmediate(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    try {
+      wc.send(channel, ...args);
+    } catch (e) {
+      console.warn('[safeSend] threw for', channel, ':', e.message);
+    }
+  });
+  return true;
+}
+
+function wakeWordCallback() {
+  console.log('[WakeFlow] wakeWordCallback fired — currentMode =', _windowMode, ', visible =', mainWindow?.isVisible());
+
+  // Always update mode + notify renderer. setWindowMode is idempotent.
+  const r = setWindowMode('hud');
+  console.log('[WakeFlow] setWindowMode result:', r);
+
+  // Notify renderer of detection (used for flash + safety-net mode switch)
+  safeSend('wake-word-detected');
+  safeSend('hud:open');
+
+  // Only steal focus at most once per 4 seconds so rapid OWW hits don't
+  // continuously yank the user away from whatever they're doing.
+  const now = Date.now();
+  if (now - _lastWakeFocusAt > 4000) {
+    _lastWakeFocusAt = now;
+    showWindow();
+    console.log('[WakeFlow] showWindow done, isVisible =', mainWindow?.isVisible());
+  } else {
+    console.log('[WakeFlow] focus-steal rate-limited (last steal', now - _lastWakeFocusAt, 'ms ago)');
+  }
 }
 
 ipcMain.handle('wake-word-start', () => {
@@ -450,6 +511,30 @@ ipcMain.handle('supabase-config', () => ({
 // ── IPC: Window mode ───────────────────────────────────────────────────────
 ipcMain.handle('set-window-mode', (_e, mode) => setWindowMode(mode));
 ipcMain.handle('get-window-mode', () => _windowMode);
+
+// ── IPC: HUD state + Map ──────────────────────────────────────────────────
+// Renderer drives HUD state changes (voice loop already has the truth).
+// These pass-throughs let any other module trigger HUD UI changes via IPC.
+ipcMain.on('hud:state', (_e, state) => {
+  mainWindow?.webContents.send('hud:state', state);
+});
+ipcMain.on('hud:open', () => {
+  setWindowMode('hud');
+  showWindow();
+  mainWindow?.webContents.send('hud:open');
+});
+ipcMain.on('hud:close', () => {
+  mainWindow?.webContents.send('hud:close');
+  // Renderer triggers shutdown anim, then sends 'close-window' when done.
+});
+ipcMain.on('map:open', (_e, payload) => {
+  setWindowMode('map');
+  mainWindow?.webContents.send('map:open', payload);
+});
+ipcMain.on('map:close', () => {
+  setWindowMode('hud');
+  mainWindow?.webContents.send('map:close');
+});
 
 // ── IPC: Config get / set ──────────────────────────────────────────────────
 ipcMain.handle('config-get', (_e, key) => configSvc.get(key));

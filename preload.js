@@ -70,11 +70,27 @@ contextBridge.exposeInMainWorld('jarvis', {
   // Supabase config (exposes URL + anon key to renderer securely)
   supabaseConfig: () => ipcRenderer.invoke('supabase-config'),
 
-  // Window mode (HUD vs Chat)
+  // Window mode (HUD vs Chat vs Map)
   setWindowMode:        (mode) => ipcRenderer.invoke('set-window-mode', mode),
   getWindowMode:        ()     => ipcRenderer.invoke('get-window-mode'),
   onWindowModeChanged:  (cb)   => ipcRenderer.on('window-mode-changed', (_e, m) => cb(m)),
   offWindowModeChanged: ()     => ipcRenderer.removeAllListeners('window-mode-changed'),
+
+  // HUD state + Map
+  hudState:    (state) => ipcRenderer.send('hud:state', state),
+  hudOpen:     ()      => ipcRenderer.send('hud:open'),
+  hudClose:    ()      => ipcRenderer.send('hud:close'),
+  mapOpen:     (data)  => ipcRenderer.send('map:open', data),
+  mapClose:    ()      => ipcRenderer.send('map:close'),
+  onHudState:  (cb)    => ipcRenderer.on('hud:state', (_e, s) => cb(s)),
+  onHudOpen:   (cb)    => ipcRenderer.on('hud:open',  ()      => cb()),
+  onHudClose:  (cb)    => ipcRenderer.on('hud:close', ()      => cb()),
+  onMapOpen:   (cb)    => ipcRenderer.on('map:open',  (_e, d) => cb(d)),
+  onMapClose:  (cb)    => ipcRenderer.on('map:close', ()      => cb()),
+  offHudEvents: () => {
+    ['hud:state','hud:open','hud:close','map:open','map:close']
+      .forEach(e => ipcRenderer.removeAllListeners(e));
+  },
 
   // Briefing
   briefingGet:    ()    => ipcRenderer.invoke('briefing-get'),

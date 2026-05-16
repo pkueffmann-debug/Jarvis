@@ -97,23 +97,50 @@ async function transcribeAudio(audioBuffer, mimeType = 'audio/webm') {
 }
 
 async function textToSpeech(text) {
-  const apiKey  = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-  if (!apiKey || !voiceId) return null;
-
   const payload = text.length > 4000 ? text.slice(0, 4000) + '…' : text;
 
-  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-    method: 'POST',
-    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
-    body: JSON.stringify({
-      text: payload,
-      model_id: 'eleven_turbo_v2_5',
-      voice_settings: { stability: 0.55, similarity_boost: 0.75, style: 0.08, use_speaker_boost: true },
-    }),
-  });
-  if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${res.statusText}`);
-  return Buffer.from(await res.arrayBuffer());
+  // Try ElevenLabs first (primary voice). Fall through to OpenAI on any
+  // failure — including 401/403, which is what kills the loop when the
+  // user's ElevenLabs key has expired or is missing.
+  const elKey  = process.env.ELEVENLABS_API_KEY;
+  const elVoice = process.env.ELEVENLABS_VOICE_ID;
+  if (elKey && elVoice) {
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${elVoice}`, {
+        method: 'POST',
+        headers: { 'xi-api-key': elKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+        body: JSON.stringify({
+          text: payload,
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: { stability: 0.55, similarity_boost: 0.75, style: 0.08, use_speaker_boost: true },
+        }),
+      });
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+      console.warn(`[TTS] ElevenLabs ${res.status} — falling back to OpenAI`);
+    } catch (e) {
+      console.warn('[TTS] ElevenLabs network error — falling back to OpenAI:', e.message);
+    }
+  }
+
+  // OpenAI TTS fallback (uses the same key as Whisper STT).
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('[TTS] No OPENAI_API_KEY for fallback — silent.');
+    return null;
+  }
+  try {
+    const client = getOpenAI();
+    const out = await client.audio.speech.create({
+      model: 'tts-1',
+      voice: 'onyx',   // deep masculine voice, JARVIS-appropriate
+      input: payload,
+      response_format: 'mp3',
+    });
+    const arrBuf = await out.arrayBuffer();
+    return Buffer.from(arrBuf);
+  } catch (e) {
+    console.error('[TTS] OpenAI fallback also failed:', e.message);
+    return null;
+  }
 }
 
 module.exports = { transcribeAudio, textToSpeech };

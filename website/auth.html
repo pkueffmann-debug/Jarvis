@@ -156,6 +156,56 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── Cookie helpers — bridge Supabase session into server-side gates ──────
+// Server-side gates (api/brain.js) need to read sb-access-token from a
+// cookie. Supabase JS stores it in localStorage by default; we mirror it
+// into a Secure cookie after each successful auth event.
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;  // 7 days
+function setSessionCookies(session) {
+  if (!session) return;
+  const sec = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `sb-access-token=${session.access_token}; Path=/; Max-Age=${COOKIE_MAX_AGE}; SameSite=Lax${sec}`;
+  if (session.refresh_token) {
+    document.cookie = `sb-refresh-token=${session.refresh_token}; Path=/; Max-Age=${COOKIE_MAX_AGE}; SameSite=Lax${sec}`;
+  }
+}
+function clearSessionCookies() {
+  document.cookie = 'sb-access-token=; Path=/; Max-Age=0; SameSite=Lax';
+  document.cookie = 'sb-refresh-token=; Path=/; Max-Age=0; SameSite=Lax';
+}
+
+// Refresh cookies whenever Supabase emits a session update (covers token rotation).
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    clearSessionCookies();
+  } else if (session) {
+    setSessionCookies(session);
+  }
+});
+
+// Where do we go after a successful auth event?
+//   ?next=/brain → /brain (the auth-gated app)
+//   ?next=checkout-pro|team|enterprise → start Stripe checkout straight away
+//   default → /pricing.html?email=…
+function postAuthRedirect(email, session) {
+  setSessionCookies(session);
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get('next');
+  if (next === '/brain' || next === '/brain/') {
+    window.location.href = '/brain';
+    return;
+  }
+  const checkoutMatch = next && /^checkout-(pro|team|enterprise)(?:-yearly)?$/.exec(next);
+  if (checkoutMatch) {
+    const plan = checkoutMatch[1];
+    const yearly = next.endsWith('-yearly');
+    // Reuse the landing's startCheckout flow by jumping there with a fragment
+    window.location.href = `/?go=checkout-${plan}${yearly ? '-yearly' : ''}`;
+    return;
+  }
+  window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
+}
+
 function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
@@ -192,7 +242,7 @@ document.getElementById('login-btn').addEventListener('click', async () => {
       : error.message;
     showMsg('login-msg', 'error', msg);
   } else {
-    window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
+    postAuthRedirect(email, data.session);
   }
 });
 
@@ -214,7 +264,7 @@ document.getElementById('signup-btn').addEventListener('click', async () => {
   } else if (data.user && !data.session) {
     showMsg('signup-msg', 'success', 'Bestätigungs-E-Mail gesendet. Bitte E-Mail bestätigen, dann anmelden.');
   } else {
-    window.location.href = '/pricing.html?email=' + encodeURIComponent(email);
+    postAuthRedirect(email, data.session);
   }
 });
 
@@ -257,12 +307,21 @@ async function handleSession() {
         .filter(k => k.startsWith('sb-') || k.includes('supabase'))
         .forEach(k => localStorage.removeItem(k));
     } catch {}
+    clearSessionCookies();
     history.replaceState({}, '', '/auth.html');
     showMsg('login-msg', 'success', 'Sie wurden abgemeldet, Sir.');
     return;
   }
   const { data } = await sb.auth.getSession();
   if (data.session) {
+    // Always refresh the cookie when a session is present (handles
+    // page refresh after token rotation).
+    setSessionCookies(data.session);
+    // If a ?next= is set, just go there instead of showing the "already
+    // signed in" card — most callers want to be passed through.
+    const next = params.get('next');
+    if (next) { postAuthRedirect(data.session.user.email, data.session); return; }
+
     const email = data.session.user.email;
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const card = document.querySelector('.card');

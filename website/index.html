@@ -1087,6 +1087,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
@@ -1348,34 +1349,73 @@ if (document.getElementById('features-network')) {
   initTubes(colorSets[0]);
 })();
 
+// ── Supabase client (same project as auth.html) ───────────────────────────────
+const _SUPABASE_URL = 'https://jhoddyugadidfkycldnr.supabase.co';
+const _SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impob2RkeXVnYWRpZGZreWNsZG5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0Mjk3NjEsImV4cCI6MjA5NDAwNTc2MX0.9oVlV4Rj8VC_SqQNJBZZxjj17olS0jPX2V-QZ0VP8u8';
+const _sb = (window.supabase ? window.supabase.createClient(_SUPABASE_URL, _SUPABASE_ANON) : null);
+
 // ── Stripe Checkout ───────────────────────────────────────────────────────────
-async function startCheckout(plan) {
+async function startCheckout(plan, yearlyFlag) {
   const planCapitalized = plan === 'enterprise' ? 'Enterprise' : plan.charAt(0).toUpperCase() + plan.slice(1);
   const btn = document.getElementById('btn' + planCapitalized);
-  const origHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<div class="btn-spinner"></div> Weiterleitung…';
+  const origHTML = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<div class="btn-spinner"></div> Weiterleitung…';
+  }
+
+  // 1) Require an authenticated user before we hand them off to Stripe.
+  //    Anonymous → bounce to /auth.html with a ?next= that brings them
+  //    back to this exact checkout once they're signed in.
+  let userId = null;
+  let email  = null;
+  try {
+    const { data } = await (_sb ? _sb.auth.getSession() : { data: { session: null } });
+    if (data?.session?.user) {
+      userId = data.session.user.id;
+      email  = data.session.user.email;
+    }
+  } catch (_) {}
+
+  const isYearly = (yearlyFlag !== undefined) ? !!yearlyFlag : !!window.yearly;
+  if (!userId) {
+    const next = `checkout-${plan}${isYearly ? '-yearly' : ''}`;
+    window.location.href = '/auth.html?next=' + encodeURIComponent(next);
+    return;
+  }
 
   try {
     const res  = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, yearly }),
+      body: JSON.stringify({ plan, yearly: isYearly, user_id: userId, email }),
     });
     const data = await res.json();
     if (data.url) {
       window.location.href = data.url;
     } else {
       alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
-      btn.disabled = false;
-      btn.innerHTML = origHTML;
+      if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     }
   } catch (e) {
     alert('Verbindungsfehler. Bitte versuche es erneut.');
-    btn.disabled = false;
-    btn.innerHTML = origHTML;
+    if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
   }
 }
+
+// If the user just came back from /auth.html?next=checkout-X, kick the
+// checkout off automatically so they don't have to click again.
+(function autoResumeCheckout() {
+  const params = new URLSearchParams(window.location.search);
+  const go = params.get('go');
+  const m = go && /^checkout-(pro|team|enterprise)(?:-(yearly))?$/.exec(go);
+  if (!m) return;
+  // Strip the param so a reload doesn't re-trigger.
+  params.delete('go');
+  const newSearch = params.toString();
+  history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash);
+  setTimeout(() => startCheckout(m[1], !!m[2]), 200);
+})();
 
 // ── Download counter ──────────────────────────────────────────────────────────
 (function initDownloadCount() {

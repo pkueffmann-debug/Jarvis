@@ -20,13 +20,26 @@ p{color:#94A3B8;font-size:15px;line-height:1.6;margin-bottom:32px}
 <body>
 <div class="card">
   <div class="check">✓</div>
-  <h1>Zahlung erfolgreich!</h1>
-  <p>Willkommen bei JARVIS Pro. Lade jetzt die App herunter und starte deine 30-Tage-Testphase.</p>
-  <a href="/download/JARVIS-latest.dmg" class="btn">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-    JARVIS.dmg herunterladen
+  <h1>Willkommen, Sir.</h1>
+  <p id="msg">Zahlung bestätigt. Sie werden in <span id="cd">5</span> Sekunden zu JARVIS weitergeleitet.</p>
+  <a href="/brain" class="btn">
+    <span>Jetzt zu JARVIS</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
   </a>
-  <p class="note">Deine Lizenz wurde per Email zugeschickt · hello@jarvisapp.de für Support</p>
+  <p class="note" style="margin-top:18px;">
+    Oder die Desktop-App: <a href="/download/JARVIS-latest.dmg" style="color:#A5B4FC;">JARVIS.dmg herunterladen</a>
+  </p>
 </div>
+<script>
+// Stripe webhooks can land a fraction of a second after the success
+// redirect. We wait a bit so the auth gate finds an active row.
+let n = 5;
+const cd = document.getElementById('cd');
+const t = setInterval(() => {
+  n -= 1;
+  if (cd) cd.textContent = n;
+  if (n <= 0) { clearInterval(t); window.location.href = '/brain'; }
+}, 1000);
+</script>
 </body>
 </html>

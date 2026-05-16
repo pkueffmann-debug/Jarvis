@@ -25,6 +25,10 @@ module.exports = async function handler(req, res) {
   const plan    = body.plan;
   const yearly  = body.yearly === true || body.yearly === 'true';
   const email   = typeof body.email === 'string' ? body.email.trim() : '';
+  // user_id from authenticated frontend (Supabase auth.uid()).
+  // We thread it through both client_reference_id (on the session) AND
+  // subscription metadata so the webhook can always find which user paid.
+  const userId  = typeof body.user_id === 'string' ? body.user_id.trim() : '';
   const key     = `${plan}_${yearly ? 'yearly' : 'monthly'}`;
   const priceId = PRICES[key];
 
@@ -45,11 +49,16 @@ module.exports = async function handler(req, res) {
       billing_address_collection: 'auto',
       line_items: [{ price: priceId, quantity: 1 }],
       ...(email ? { customer_email: email } : {}),
+      // client_reference_id is the standard way to bind a Stripe session to
+      // your own user. The webhook reads this on checkout.session.completed.
+      ...(userId ? { client_reference_id: userId } : {}),
       success_url: `${base}/success.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${base}/#pricing`,
       subscription_data: {
         trial_period_days: 7,
-        metadata: { plan, yearly: String(yearly), email },
+        // Copy user_id onto the subscription so later .updated/.deleted
+        // events also have it without a database round-trip.
+        metadata: { plan, yearly: String(yearly), email, user_id: userId },
       },
       locale: 'de',
     });

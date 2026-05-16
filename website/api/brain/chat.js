@@ -11,8 +11,49 @@
 
 const { execFile } = require('child_process');
 const { gate } = require('../_lib/auth');
-const { askProvider, availableProviders } = require('../_lib/providers');
+const { askProvider: askProviderRaw, availableProviders } = require('../_lib/providers');
 const { loadFactsFor, rememberFact, recallFacts, forgetFact } = require('./memory');
+
+// askProvider wrapper: per-call timeout + 1 retry on transient errors.
+// Why: a single hung LLM call can stall the whole turn for 30+ seconds and
+// users perceive that as JARVIS "ignoring" them. Hard ceiling at 25s per
+// call, retry once after 1s on 429/503/network/timeout.
+const PROVIDER_TIMEOUT_MS = 25_000;
+const PROVIDER_RETRIES    = 1;
+
+function isRetryable(err) {
+  const msg = (err?.message || '').toLowerCase();
+  if (msg.includes('aborted') || msg.includes('timeout')) return true;
+  if (msg.includes('429')   || msg.includes('rate_limit')) return true;
+  if (msg.includes('503')   || msg.includes('overloaded')) return true;
+  if (msg.includes('502')   || msg.includes('504'))        return true;
+  if (msg.includes('network') || msg.includes('fetch failed')) return true;
+  return false;
+}
+
+function withTimeout(promise, ms, label) {
+  let to;
+  const timeout = new Promise((_, reject) => {
+    to = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(to));
+}
+
+async function askProvider(opts) {
+  for (let attempt = 0; attempt <= PROVIDER_RETRIES; attempt++) {
+    try {
+      return await withTimeout(askProviderRaw(opts), PROVIDER_TIMEOUT_MS, 'provider');
+    } catch (e) {
+      const last = attempt === PROVIDER_RETRIES;
+      console.error(`[brain/chat] askProvider attempt ${attempt + 1} (${opts.provider || 'anthropic'}) failed: ${e?.message}`);
+      if (!last && isRetryable(e)) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
 
 // ── Tools available to JARVIS ─────────────────────────────────────────────
 const BRAIN_TOOLS = [
@@ -348,9 +389,18 @@ module.exports = async (req, res) => {
       used: { provider, model: usedModel },
     }));
   } catch (e) {
-    console.error('[brain/chat]', e);
+    console.error('[brain/chat] turn failed', {
+      provider, model, tier,
+      message: e?.message,
+      stack:   e?.stack?.split('\n').slice(0, 4).join('\n'),
+      lastUserMsg: messages.at(-1)?.content?.toString?.().slice(0, 120),
+    });
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: e.message }));
+    res.end(JSON.stringify({
+      error: e.message,
+      // Friendly fallback the client can show if it wants.
+      reply: 'Tut mir leid, Sir — ich habe gerade Probleme einen Provider zu erreichen.',
+    }));
   }
 };
 

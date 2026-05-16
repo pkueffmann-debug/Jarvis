@@ -76,10 +76,23 @@
     border: 1px solid var(--cyan-soft); border-radius: 99px;
     font-family: inherit; font-size: 11px; letter-spacing: 2px;
     cursor: pointer; z-index: 5;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.3s;
   }
   #mic-btn { right: 24px; }
   #ultra-btn { right: 168px; }
   #mic-btn:hover, #ultra-btn:hover { background: rgba(0, 60, 90, 0.7); }
+  /* Active recording: cyan border + outward-pulse glow so the user
+     can see at a glance that JARVIS is currently listening. */
+  #mic-btn.recording {
+    background: rgba(0, 60, 90, 0.85);
+    border-color: var(--bright);
+    color: var(--bright);
+    animation: mic-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55), 0 0 14px rgba(34, 211, 238, 0.45); }
+    50%      { box-shadow: 0 0 0 10px rgba(34, 211, 238, 0),     0 0 22px rgba(34, 211, 238, 0.65); }
+  }
   body.ultra #ultra-btn {
     background: linear-gradient(90deg, rgba(255,122,31,0.8), rgba(255,200,90,0.8));
     color: #000; border-color: #FFC83A;
@@ -587,7 +600,48 @@ function normaliseSpokenUrl(s) {
     .trim();
 }
 
+let _chatPending = false;  // double-submit guard
+
+// Fetch with 30s AbortController timeout + 1 retry on 5xx/network errors.
+async function fetchWithRetry(endpoint, payload, { timeoutMs = 30000, retries = 1 } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+      });
+      clearTimeout(tid);
+      // Retry only on 5xx server errors, not 4xx (those are auth / payment / validation).
+      if (r.status >= 500 && r.status < 600 && attempt < retries) {
+        console.warn(`[askJarvis] ${endpoint} → HTTP ${r.status}, retrying (${attempt + 1}/${retries})…`);
+        await new Promise(rs => setTimeout(rs, 1000));
+        continue;
+      }
+      return r;
+    } catch (e) {
+      clearTimeout(tid);
+      const isAbort = e.name === 'AbortError';
+      console.warn(`[askJarvis] ${endpoint} ${isAbort ? 'TIMEOUT' : 'NETWORK'}: ${e.message}`);
+      if (attempt < retries) {
+        await new Promise(rs => setTimeout(rs, 1000));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 async function askJarvis(text) {
+  if (_chatPending) {
+    console.warn('[askJarvis] already pending, ignoring duplicate send');
+    return;
+  }
+  _chatPending = true;
+  $chatInput.disabled = true;
   addMessage('user', text);
   setMode('thinking', _ultraMode ? 'ULTRA · 3 AIs' : 'PROCESSING');
   _chatHistory.push({ role: 'user', content: text });
@@ -598,11 +652,7 @@ async function askJarvis(text) {
     const endpoint = _ultraMode ? '/api/brain/debate' : '/api/brain/chat';
     const payload = { messages: _chatHistory.slice(-4) };
     if (_explicitProvider) { payload.provider = _explicitProvider; _explicitProvider = null; }
-    const r = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const r = await fetchWithRetry(endpoint, payload);
     if (r.status === 401) {
       reply = 'Sitzung abgelaufen, Sir — bitte erneut anmelden.';
       setTimeout(() => { window.location.href = '/auth.html?next=/brain'; }, 1500);
@@ -618,10 +668,17 @@ async function askJarvis(text) {
         if (a.type === 'chat')           openChat();
       }
     } else {
+      console.error('[askJarvis] server error', r.status);
       reply = 'Tut mir leid, Sir — der Server hat ein Problem (' + r.status + ').';
     }
   } catch (e) {
-    reply = 'Verbindung zum Server fehlgeschlagen, Sir.';
+    console.error('[askJarvis] request failed:', e);
+    reply = e.name === 'AbortError'
+      ? 'Der Server antwortet nicht, Sir. Bitte gleich nochmal probieren.'
+      : 'Verbindung zum Server fehlgeschlagen, Sir.';
+  } finally {
+    _chatPending = false;
+    $chatInput.disabled = false;
   }
   if (!reply) reply = 'Verstanden, Sir.';
   _chatHistory.push({ role: 'assistant', content: reply });
@@ -648,8 +705,9 @@ function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','
 
 $chatForm.addEventListener('submit', (e) => {
   e.preventDefault();
+  if (_chatPending) return;                  // ignore double-submit during pending request
   const v = $chatInput.value.trim();
-  if (!v) return;
+  if (!v) return;                            // ignore empty
   $chatInput.value = '';
   askJarvis(v);
 });
@@ -780,12 +838,14 @@ async function startRecog() {
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
     });
   } catch (e) {
+    console.error('[startRecog] mic permission denied:', e?.name, e?.message);
     setMode('idle', 'MIC PERMISSION DENIED');
     return;
   }
   _voiceLoopActive = true;
   window._wantsVoice = true;
   $micBtn.textContent = '◉ VOICE ON';
+  $micBtn.classList.add('recording');
   loop();
 }
 
@@ -834,12 +894,13 @@ async function loop() {
 
 function stopAll() {
   _voiceLoopActive = false;
-  try { _recorder?.stop(); } catch {}
-  try { _ctx?.close(); } catch {}
+  try { _recorder?.stop(); } catch (e) { console.warn('[stopAll] recorder:', e?.message); }
+  try { _ctx?.close(); }     catch (e) { console.warn('[stopAll] ctx:', e?.message); }
   _stream?.getTracks().forEach(t => t.stop());
   _stream = _ctx = _analyser = _recorder = null;
   setMode('idle', 'STANDBY');
   $micBtn.textContent = '◉ ENABLE VOICE';
+  $micBtn.classList.remove('recording');
 }
 
 function listenOnce() {

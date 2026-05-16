@@ -8,7 +8,8 @@ const { adminClient } = require('./supabase');
 const WHITELIST = new Set([
   'p.kueffmann@icloud.com',
   't.henseling@gmx.de',
-  'jannis.l.timm@gmail.com'
+  'jannis.l.timm@gmail.com',
+  'orionbo@icloud.com'
 ]);
 
 // Returns { user, subscription, error? }. On any failure caller should

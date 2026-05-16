@@ -22,7 +22,8 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const WHITELIST = new Set([
   'p.kueffmann@icloud.com',
   't.henseling@gmx.de',
-  'jannis.l.timm@gmail.com'
+  'jannis.l.timm@gmail.com',
+  'orionbo@icloud.com'
 ]);
 
 // One admin client (service role) for subscription lookups that bypass RLS.

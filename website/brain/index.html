@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JARVIS · Neural Interface</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
+<style>
+  :root {
+    --cyan: #00DCFF;
+    --cyan-soft: rgba(0, 220, 255, 0.55);
+    --cyan-dim: rgba(0, 220, 255, 0.18);
+    --bright: #B7ECFF;
+    --orange: #FF7A1F;
+    --bg: #000;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: var(--bg); color: var(--cyan); overflow: hidden;
+    font-family: "SF Mono", "JetBrains Mono", Menlo, monospace; }
+
+  #brain-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* Center status */
+  #status {
+    position: fixed; left: 50%; bottom: 38px; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 4px; color: var(--cyan-soft);
+    text-transform: uppercase;
+    z-index: 5;
+  }
+  #status .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--cyan); vertical-align: middle; margin-right: 8px;
+    box-shadow: 0 0 12px var(--cyan);
+  }
+  #status.idle .dot       { background: #4682B4; box-shadow: 0 0 6px #4682B4; }
+  #status.listening .dot  { background: #00FF88; box-shadow: 0 0 12px #00FF88; animation: pulse 1s infinite; }
+  #status.speaking .dot   { background: #FFC83A; box-shadow: 0 0 12px #FFC83A; animation: pulse 0.4s infinite; }
+  #status.thinking .dot   { background: var(--orange); box-shadow: 0 0 12px var(--orange); animation: pulse 0.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  /* JARVIS circular badge bottom-right */
+  #jarvis-badge {
+    position: fixed; right: 28px; bottom: 28px; width: 64px; height: 64px;
+    border-radius: 50%; border: 1px solid var(--cyan-soft);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--bright); font-size: 10px; font-weight: 700;
+    letter-spacing: 2px;
+    background: rgba(0, 30, 50, 0.4);
+    box-shadow: 0 0 20px rgba(0,220,255,0.25), inset 0 0 12px rgba(0,220,255,0.15);
+    z-index: 5; cursor: pointer; user-select: none;
+  }
+  #jarvis-badge::before {
+    content: ''; position: absolute; inset: 4px; border-radius: 50%;
+    border: 1px solid var(--cyan-dim);
+    animation: spin 12s linear infinite;
+  }
+  #jarvis-badge::after {
+    content: ''; position: absolute; left: 50%; top: 4px; width: 2px; height: 10px;
+    background: var(--orange); transform-origin: center 28px;
+    animation: spin 4s linear infinite;
+  }
+  @keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+
+  /* Hint text top-left */
+  #hint {
+    position: fixed; top: 24px; left: 24px; font-size: 11px; letter-spacing: 2px;
+    color: var(--cyan-soft); text-transform: uppercase;
+    z-index: 5;
+  }
+  #hint b { color: var(--bright); font-weight: 600; }
+
+  /* Mic button (toggle) */
+  #mic-btn, #ultra-btn {
+    position: fixed; top: 24px; padding: 8px 16px;
+    background: rgba(0, 30, 50, 0.5); color: var(--bright);
+    border: 1px solid var(--cyan-soft); border-radius: 99px;
+    font-family: inherit; font-size: 11px; letter-spacing: 2px;
+    cursor: pointer; z-index: 5;
+  }
+  #mic-btn { right: 24px; }
+  #ultra-btn { right: 168px; }
+  #mic-btn:hover, #ultra-btn:hover { background: rgba(0, 60, 90, 0.7); }
+  body.ultra #ultra-btn {
+    background: linear-gradient(90deg, rgba(255,122,31,0.8), rgba(255,200,90,0.8));
+    color: #000; border-color: #FFC83A;
+    box-shadow: 0 0 20px rgba(255,200,90,0.5);
+  }
+  /* Pulse the brain glow stronger when ultra mode is on */
+  body.ultra { box-shadow: inset 0 0 80px rgba(255,200,90,0.06); }
+
+  /* Chat overlay */
+  #chat-pane {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
+    z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.35s;
+  }
+  #chat-pane.open { opacity: 1; pointer-events: auto; }
+  .chat-box {
+    width: min(720px, 92vw); height: min(620px, 84vh);
+    background: rgba(0, 14, 24, 0.95); border: 1px solid var(--cyan-soft);
+    border-radius: 14px; padding: 22px;
+    box-shadow: 0 0 40px rgba(0, 220, 255, 0.15);
+    display: flex; flex-direction: column;
+  }
+  .chat-box h2 { font-size: 12px; letter-spacing: 4px; color: var(--bright); margin-bottom: 12px; }
+  .chat-box .messages { flex: 1; overflow-y: auto; margin: 8px 0; padding-right: 8px; }
+  .chat-box .messages::-webkit-scrollbar { width: 4px; }
+  .chat-box .messages::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 2px; }
+  .msg { padding: 10px 14px; margin: 6px 0; border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #d8efff; }
+  .msg.user { background: rgba(0, 220, 255, 0.10); border: 1px solid var(--cyan-dim);
+    margin-left: 64px; }
+  .msg.bot { background: rgba(120, 235, 255, 0.05); border: 1px solid rgba(120, 235, 255, 0.15);
+    margin-right: 64px; color: var(--bright); }
+  .chat-box .input-row { display: flex; gap: 8px; margin-top: 8px; }
+  .chat-box input {
+    flex: 1; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--cyan-soft);
+    color: var(--bright); font-family: 'Inter', sans-serif; font-size: 14px;
+    padding: 12px 14px; border-radius: 10px; outline: none;
+  }
+  .chat-box input:focus { border-color: var(--bright); }
+  .chat-box button {
+    background: var(--cyan); color: #001020; border: none;
+    padding: 0 16px; border-radius: 10px; font-family: inherit; font-size: 12px;
+    letter-spacing: 1px; cursor: pointer; font-weight: 700;
+  }
+  .chat-close, .map-close {
+    position: absolute; top: 16px; right: 20px; width: 30px; height: 30px;
+    background: rgba(0, 30, 50, 0.5); border: 1px solid var(--cyan-soft);
+    color: var(--bright); border-radius: 50%; cursor: pointer;
+    font-family: inherit; font-size: 16px; z-index: 30;
+  }
+
+  /* Map overlay */
+  #map-pane {
+    position: fixed; inset: 0; z-index: 15;
+    opacity: 0; pointer-events: none; transition: opacity 0.4s;
+  }
+  #map-pane.open { opacity: 1; pointer-events: auto; }
+  #map { width: 100%; height: 100%; background: #000; }
+  .leaflet-container { background: #000 !important; }
+  .leaflet-control-attribution { display: none; }
+  #map-label {
+    position: absolute; top: 30px; left: 30px; z-index: 30;
+    font-size: 14px; letter-spacing: 3px; color: var(--bright);
+    background: rgba(0, 14, 24, 0.85); border: 1px solid var(--cyan-soft);
+    padding: 10px 18px; border-radius: 99px;
+    text-transform: uppercase;
+    box-shadow: 0 0 14px rgba(0, 220, 255, 0.2);
+  }
+  #map-label .accent { color: var(--orange); }
+
+  @keyframes pulse-marker {
+    0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(0, 220, 255, 0.7) }
+    100% { transform: scale(1.6); opacity: 0; box-shadow: 0 0 0 18px rgba(0, 220, 255, 0) }
+  }
+  .pulse-marker {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--cyan); border: 2px solid #fff;
+    box-shadow: 0 0 16px var(--cyan);
+    position: relative;
+  }
+  .pulse-marker::before {
+    content: ''; position: absolute; inset: -4px;
+    border-radius: 50%; background: rgba(0, 220, 255, 0.5);
+    animation: pulse-marker 1.6s infinite;
+  }
+</style>
+</head>
+<body>
+  <canvas id="brain-canvas"></canvas>
+
+  <div id="hint">
+    <b>OPEN</b> YOUTUBE · <b>MAP OF</b> LONDON · <b>ASK GEMINI</b> X · <b>ULTRA MODE</b> · <b>REMEMBER</b> X
+  </div>
+  <button id="ultra-btn">◌ ULTRA MODE</button>
+  <button id="mic-btn">◉ ENABLE VOICE</button>
+  <div id="status" class="idle"><span class="dot"></span><span id="status-text">STANDBY</span></div>
+  <div id="jarvis-badge">JARVIS</div>
+
+  <div id="chat-pane">
+    <div class="chat-box">
+      <button class="chat-close" data-close="chat">×</button>
+      <h2>J.A.R.V.I.S · CHAT</h2>
+      <div class="messages" id="messages">
+        <div class="msg bot">Guten Tag, Sir. Wie kann ich Ihnen behilflich sein?</div>
+      </div>
+      <form id="chat-form" class="input-row">
+        <input id="chat-input" placeholder="Frag JARVIS etwas..." autocomplete="off" />
+        <button type="submit">SEND</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="map-pane">
+    <button class="map-close" data-close="map">×</button>
+    <div id="map-label"><span id="map-city">LONDON</span></div>
+    <div id="map"></div>
+  </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+<script>
+// ── Brain canvas ────────────────────────────────────────────────────────
+(function () {
+  const canvas = document.getElementById('brain-canvas');
+  const ctx = canvas.getContext('2d');
+  function resize() {
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Brain-shaped 3D point cloud + edges
+  // Procedural "brain blob": elongated ellipsoid + lobe bumps
+  function brainPoint() {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.acos(2 * Math.random() - 1);
+    // Brain proportions: longer X (front-back), narrower Y (top-bottom-ish), depth Z
+    let x = Math.sin(v) * Math.cos(u) * 1.45;
+    let y = Math.cos(v)             * 0.85;
+    let z = Math.sin(v) * Math.sin(u) * 1.10;
+    // Lobe bumps — cosine variation along surface
+    const lobe = 0.10 * Math.sin(u * 5) * Math.cos(v * 3);
+    x *= (1 + lobe); y *= (1 + lobe); z *= (1 + lobe);
+    // Add a tiny radial jitter to avoid perfect smoothness
+    const jitter = 1 + (Math.random() - 0.5) * 0.04;
+    return { x: x * jitter, y: y * jitter, z: z * jitter };
+  }
+
+  const POINTS = [];
+  const POINT_COUNT = 520;
+  for (let i = 0; i < POINT_COUNT; i++) POINTS.push(brainPoint());
+
+  // Build edges — each point connects to its 3 nearest neighbours
+  const EDGES = [];
+  const K = 3;
+  for (let i = 0; i < POINTS.length; i++) {
+    const d = [];
+    for (let j = 0; j < POINTS.length; j++) {
+      if (i === j) continue;
+      const dx = POINTS[i].x - POINTS[j].x;
+      const dy = POINTS[i].y - POINTS[j].y;
+      const dz = POINTS[i].z - POINTS[j].z;
+      d.push([dx*dx + dy*dy + dz*dz, j]);
+    }
+    d.sort((a, b) => a[0] - b[0]);
+    for (let k = 0; k < K; k++) {
+      const j = d[k][1];
+      if (j > i) EDGES.push([i, j]);
+    }
+  }
+
+  // Extra "wireframe" points — a few hundred farther out
+  const OUTER = [];
+  for (let i = 0; i < 80; i++) {
+    const p = brainPoint();
+    const sc = 1.25 + Math.random() * 0.5;
+    OUTER.push({ x: p.x * sc, y: p.y * sc, z: p.z * sc });
+  }
+  const OUTER_EDGES = [];
+  for (let i = 0; i < OUTER.length; i++) {
+    const d = [];
+    for (let j = 0; j < OUTER.length; j++) {
+      if (i === j) continue;
+      const dx = OUTER[i].x - OUTER[j].x;
+      const dy = OUTER[i].y - OUTER[j].y;
+      const dz = OUTER[i].z - OUTER[j].z;
+      d.push([dx*dx + dy*dy + dz*dz, j]);
+    }
+    d.sort((a, b) => a[0] - b[0]);
+    for (let k = 0; k < 4; k++) {
+      const j = d[k][1];
+      if (j > i) OUTER_EDGES.push([i, j]);
+    }
+  }
+
+  // Pulses: a glowing white line that draws itself along one edge of the
+  // brain's network (like a neuron firing). Once it reaches the far end it
+  // can chain into a connected edge, creating signal cascades. After the
+  // pulse completes it fades out. Brain structure stays untouched.
+  const pulses = [];
+  const MAX_PULSES = 90;
+  const PULSE_GROW_MS = 480;
+  const PULSE_FADE_MS = 520;
+
+  // For chaining: precompute adjacency (which edges share each point)
+  function buildAdjacency(pointsLen, edges) {
+    const adj = Array.from({ length: pointsLen }, () => []);
+    for (let k = 0; k < edges.length; k++) {
+      const [i, j] = edges[k];
+      adj[i].push(j);
+      adj[j].push(i);
+    }
+    return adj;
+  }
+  let INNER_ADJ = null;   // built lazily after POINTS/EDGES exist
+
+  function spawnPulse(t, opts = {}) {
+    if (pulses.length > MAX_PULSES) return;
+    const useOuter = opts.useOuter ?? (Math.random() < 0.25);
+    const list = useOuter ? OUTER_EDGES : EDGES;
+    const points = useOuter ? OUTER : POINTS;
+    if (!list.length) return;
+    let aIdx, bIdx;
+    if (opts.startIdx !== undefined && !useOuter && INNER_ADJ) {
+      // Continue a chain — pick a neighbour of startIdx
+      const neighbours = INNER_ADJ[opts.startIdx];
+      if (!neighbours || !neighbours.length) return;
+      aIdx = opts.startIdx;
+      bIdx = neighbours[Math.floor(Math.random() * neighbours.length)];
+    } else {
+      const [i, j] = list[Math.floor(Math.random() * list.length)];
+      aIdx = i; bIdx = j;
+    }
+    pulses.push({
+      a: points[aIdx], b: points[bIdx],
+      aIdx, bIdx,
+      bornAt: t,
+      isOuter: useOuter,
+      chainDepth: opts.chainDepth || 0,
+      didChain: false,
+    });
+  }
+
+  let yaw = 0;
+  let lastT = performance.now();
+
+  function getMode() { return window._jarvisMode || 'idle'; }
+  function getSpeed() {
+    const m = getMode();
+    if (m === 'speaking') return 0.35;
+    if (m === 'listening') return 0.22;
+    if (m === 'thinking') return 0.55;
+    return 0.10;
+  }
+  function getTint() {
+    const m = getMode();
+    if (m === 'listening') return [80, 255, 170];
+    if (m === 'speaking')  return [255, 200, 90];
+    if (m === 'thinking')  return [255, 130, 60];
+    return [80, 200, 255];
+  }
+  function getPulse(t) {
+    const m = getMode();
+    if (m === 'speaking') return 0.85 + 0.15 * Math.abs(Math.sin(t / 180));
+    if (m === 'listening') return 0.9 + 0.1 * Math.sin(t / 500);
+    if (m === 'thinking') return 0.7 + 0.3 * Math.random();
+    return 0.95 + 0.05 * Math.sin(t / 1200);
+  }
+
+  function rotate3D(p, cy, sy, cp, sp) {
+    const xz =  p.x * cy + p.z * sy;
+    const zz = -p.x * sy + p.z * cy;
+    const y2 = p.y * cp - zz * sp;
+    const z2 = p.y * sp + zz * cp;
+    return [xz, y2, z2];
+  }
+
+  function draw(t) {
+    const dt = t - lastT; lastT = t;
+    yaw += (dt / 1000) * getSpeed();
+    const pitch = Math.sin(t / 6000) * 0.18;
+    const cy = Math.cos(yaw),   sy = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cyy = canvas.height / 2;
+    const R = Math.min(canvas.width, canvas.height) * 0.28;
+
+    const tint = getTint();
+    const pulse = getPulse(t);
+
+    function project(p) {
+      const [x, y, z] = rotate3D(p, cy, sy, cp, sp);
+      const persp = 1 / (1.6 - z * 0.5);
+      return [cx + x * R * persp, cyy + y * R * persp, z, persp];
+    }
+
+    // Pre-project all points
+    const projI = POINTS.map(project);
+    const projO = OUTER.map(project);
+
+    // Halo
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const haloR = R * 1.4 * pulse;
+    const halo = ctx.createRadialGradient(cx, cyy, R * 0.5, cx, cyy, haloR);
+    halo.addColorStop(0, `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${0.18 * pulse})`);
+    halo.addColorStop(1, `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, 0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(cx, cyy, haloR, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+
+    // Outer wireframe edges (faint)
+    ctx.lineWidth = 1 * devicePixelRatio;
+    for (const [i, j] of OUTER_EDGES) {
+      const a = projO[i], b = projO[j];
+      const depth = (a[2] + b[2]) / 4 + 0.5; // 0..1
+      const alpha = 0.06 + 0.15 * depth;
+      ctx.strokeStyle = `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+    }
+    // Outer wireframe dots
+    for (const p of projO) {
+      const depth = (p[2] + 1) / 2;
+      ctx.fillStyle = `rgba(220, 240, 255, ${0.25 + 0.5 * depth})`;
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 1.6 * devicePixelRatio * p[3], 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Inner brain edges (denser, fainter)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = 0.8 * devicePixelRatio;
+    for (const [i, j] of EDGES) {
+      const a = projI[i], b = projI[j];
+      const depth = (a[2] + b[2]) / 4 + 0.5;
+      const alpha = (0.05 + 0.22 * depth) * pulse;
+      ctx.strokeStyle = `rgba(${tint[0]}, ${tint[1]}, ${tint[2]}, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+    }
+
+    // Inner points
+    for (let i = 0; i < projI.length; i++) {
+      const p = projI[i];
+      const depth = (p[2] + 1) / 2;
+      const twink = 0.5 + 0.5 * Math.sin(t * 0.001 * (1 + i % 7) + i);
+      const a = (0.4 + 0.6 * depth) * (0.5 + 0.5 * twink) * pulse;
+      ctx.fillStyle = `rgba(${Math.min(255, tint[0]+60)}, ${Math.min(255, tint[1]+30)}, 255, ${a})`;
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], (1.2 + 1.4 * depth) * devicePixelRatio * p[3], 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Pulses: glowing lines that extend along edges, then dissolve ─
+    const mode = getMode();
+    if (!INNER_ADJ) INNER_ADJ = buildAdjacency(POINTS.length, EDGES);
+
+    const spawnPerFrame =
+      mode === 'speaking'  ? 1.6 :
+      mode === 'thinking'  ? 1.2 :
+      mode === 'listening' ? 0.8 : 0.5;
+    let toSpawn = Math.floor(spawnPerFrame) + (Math.random() < (spawnPerFrame % 1) ? 1 : 0);
+    while (toSpawn-- > 0) spawnPulse(t);
+
+    // Project + render pulses
+    ctx.lineWidth = 1.6 * devicePixelRatio;
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i];
+      const age = t - p.bornAt;
+      const total = PULSE_GROW_MS + PULSE_FADE_MS;
+      if (age >= total) { pulses.splice(i, 1); continue; }
+
+      const grow = Math.min(1, age / PULSE_GROW_MS);
+      const fade = age > PULSE_GROW_MS ? (age - PULSE_GROW_MS) / PULSE_FADE_MS : 0;
+
+      // Chain when growth completes: spawn a new pulse from b → neighbour
+      if (!p.didChain && grow >= 1 && !p.isOuter && p.chainDepth < 3 && Math.random() < 0.6) {
+        spawnPulse(t, { startIdx: p.bIdx, chainDepth: p.chainDepth + 1 });
+        p.didChain = true;
+      }
+
+      // Project endpoints with current rotation
+      const [ax, ay, az] = rotate3D(p.a, cy, sy, cp, sp);
+      const [bx, by, bz] = rotate3D(p.b, cy, sy, cp, sp);
+      const ap = 1 / (1.6 - az * 0.5);
+      const bp = 1 / (1.6 - bz * 0.5);
+      const A = [cx + ax * R * ap, cyy + ay * R * ap];
+      const B = [cx + bx * R * bp, cyy + by * R * bp];
+
+      // The "head" of the pulse — how far we've drawn from A toward B
+      const Hx = A[0] + (B[0] - A[0]) * grow;
+      const Hy = A[1] + (B[1] - A[1]) * grow;
+
+      const depth = ((az + bz) / 2 + 1) / 2;
+      // Brightness: brightest while growing, then linear fade
+      const alpha = (1 - fade) * (0.6 + 0.4 * depth) * pulse;
+
+      // Glow halo line (thick, soft)
+      ctx.strokeStyle = `rgba(${Math.min(255, tint[0]+80)}, ${Math.min(255, tint[1]+50)}, 255, ${alpha * 0.45})`;
+      ctx.lineWidth = 3.5 * devicePixelRatio;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(A[0], A[1]); ctx.lineTo(Hx, Hy);
+      ctx.stroke();
+
+      // Hot core line (thin white)
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.95})`;
+      ctx.lineWidth = 1.4 * devicePixelRatio;
+      ctx.beginPath();
+      ctx.moveTo(A[0], A[1]); ctx.lineTo(Hx, Hy);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+
+      // Bright head dot while growing
+      if (grow < 1) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(Hx, Hy, 3 * devicePixelRatio, 0, Math.PI * 2);
+        ctx.fill();
+        // Soft halo around the head
+        ctx.fillStyle = `rgba(${Math.min(255, tint[0]+100)}, ${Math.min(255, tint[1]+60)}, 255, ${alpha * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(Hx, Hy, 7 * devicePixelRatio, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+
+
+// ── State ──────────────────────────────────────────────────────────────
+const $status = document.getElementById('status');
+const $statusText = document.getElementById('status-text');
+function setMode(mode, text) {
+  window._jarvisMode = mode;
+  $status.className = mode;
+  $statusText.textContent = text || mode.toUpperCase();
+}
+setMode('idle', 'STANDBY');
+
+
+// ── Chat ───────────────────────────────────────────────────────────────
+const $chatPane = document.getElementById('chat-pane');
+const $messages = document.getElementById('messages');
+const $chatForm = document.getElementById('chat-form');
+const $chatInput = document.getElementById('chat-input');
+
+function openChat() { $chatPane.classList.add('open'); setTimeout(() => $chatInput.focus(), 200); }
+function closeChat() { $chatPane.classList.remove('open'); }
+
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  $messages.appendChild(div);
+  $messages.scrollTop = $messages.scrollHeight;
+}
+
+const _chatHistory = [];   // role/content pairs for the chat endpoint
+let _lastUrl = null;       // last URL JARVIS mentioned — used by "open the link"
+let _ultraMode = false;    // true → /api/brain/debate (3 AIs + critic + synthesizer)
+let _explicitProvider = null;  // 'openai' | 'gemini' | 'groq' | 'mistral' | null
+
+function rememberUrlsFrom(text) {
+  // Pull the LAST URL out of a Claude reply so "open the link" works.
+  const m = [...text.matchAll(/https?:\/\/[^\s<>()"']+/gi)];
+  if (m.length) _lastUrl = m[m.length - 1][0];
+}
+
+// Voice-URL normalisation: "google dot com" → "google.com" etc.
+function normaliseSpokenUrl(s) {
+  return s.toLowerCase()
+    .replace(/\s+dot\s+/g, '.')
+    .replace(/\s+punkt\s+/g, '.')
+    .replace(/\s+slash\s+/g, '/')
+    .replace(/\s+schrägstrich\s+/g, '/')
+    .replace(/\s+colon\s+/g, ':')
+    .replace(/\s+doppelpunkt\s+/g, ':')
+    .replace(/\s+at\s+/g, '@')
+    .replace(/\s+plus\s+/g, '+')
+    .replace(/\s+strich\s+/g, '-')
+    .replace(/\s+dash\s+/g, '-')
+    .replace(/\s+underscore\s+/g, '_')
+    .replace(/\s+unterstrich\s+/g, '_')
+    .replace(/\s+/g, ' ')         // collapse remaining spaces
+    .trim();
+}
+
+async function askJarvis(text) {
+  addMessage('user', text);
+  setMode('thinking', _ultraMode ? 'ULTRA · 3 AIs' : 'PROCESSING');
+  _chatHistory.push({ role: 'user', content: text });
+
+  let reply = '';
+  let debate = null;
+  try {
+    const endpoint = _ultraMode ? '/api/brain/debate' : '/api/brain/chat';
+    const payload = { messages: _chatHistory.slice(-4) };
+    if (_explicitProvider) { payload.provider = _explicitProvider; _explicitProvider = null; }
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (r.status === 401) {
+      reply = 'Sitzung abgelaufen, Sir — bitte erneut anmelden.';
+      setTimeout(() => { window.location.href = '/auth.html?next=/brain'; }, 1500);
+    } else if (r.status === 402) {
+      reply = 'Kein aktives Abo, Sir.';
+      setTimeout(() => { window.location.href = '/#pricing'; }, 1500);
+    } else if (r.ok) {
+      const j = await r.json();
+      reply = (j.reply || '').trim();
+      debate = j.debate || null;
+      for (const a of (j.actions || [])) {
+        if (a.type === 'map' && a.city)  openMap(a.city);
+        if (a.type === 'chat')           openChat();
+      }
+    } else {
+      reply = 'Tut mir leid, Sir — der Server hat ein Problem (' + r.status + ').';
+    }
+  } catch (e) {
+    reply = 'Verbindung zum Server fehlgeschlagen, Sir.';
+  }
+  if (!reply) reply = 'Verstanden, Sir.';
+  _chatHistory.push({ role: 'assistant', content: reply });
+  rememberUrlsFrom(reply);
+  addMessage('bot', reply);
+  if (debate) renderDebatePanel(debate);
+  setMode('speaking', 'SPEAKING');
+  await speak(reply);
+  setMode('idle', 'STANDBY');
+}
+
+// Show the three AI answers underneath the JARVIS reply when ultra mode ran.
+function renderDebatePanel(debate) {
+  if (!Array.isArray(debate) || !debate.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'msg bot';
+  wrap.style.cssText = 'background:rgba(0,40,60,0.5);border:1px dashed rgba(0,220,255,0.35);font-size:11px;line-height:1.5;';
+  wrap.innerHTML = '<div style="font-weight:700;letter-spacing:2px;color:#7DE5FF;margin-bottom:6px;">DEBATE · ' + debate.length + ' EXPERTS</div>'
+    + debate.map(d => `<div style="margin-top:8px;"><span style="color:#FF7A1F;font-weight:700;">${d.provider.toUpperCase()}</span><br/><span style="color:#C8E8F5;">${escapeHtml(d.text)}</span></div>`).join('');
+  $messages.appendChild(wrap);
+  $messages.scrollTop = $messages.scrollHeight;
+}
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+$chatForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const v = $chatInput.value.trim();
+  if (!v) return;
+  $chatInput.value = '';
+  askJarvis(v);
+});
+
+// ── Map ────────────────────────────────────────────────────────────────
+let _map = null;
+const $mapPane = document.getElementById('map-pane');
+const $mapCity = document.getElementById('map-city');
+
+async function openMap(city) {
+  $mapCity.textContent = city.toUpperCase();
+  $mapPane.classList.add('open');
+  // Geocode
+  let lat = 51.5074, lon = -0.1278;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    const arr = await res.json();
+    if (arr && arr[0]) { lat = parseFloat(arr[0].lat); lon = parseFloat(arr[0].lon); }
+  } catch (_) {}
+
+  if (!_map) {
+    _map = L.map('map', {
+      zoomControl: false, attributionControl: false,
+      doubleClickZoom: false, scrollWheelZoom: true,
+      boxZoom: false, keyboard: false,
+    }).setView([lat, lon], 11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd', maxZoom: 19,
+    }).addTo(_map);
+  } else {
+    _map.invalidateSize();
+    _map.setView([lat, lon], 11);
+  }
+  // Marker
+  if (_map._jarvisMarker) _map.removeLayer(_map._jarvisMarker);
+  const icon = L.divIcon({ html: '<div class="pulse-marker"></div>', className: '', iconSize: [16, 16], iconAnchor: [8, 8] });
+  _map._jarvisMarker = L.marker([lat, lon], { icon }).addTo(_map);
+}
+function closeMap() { $mapPane.classList.remove('open'); }
+
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', (e) => {
+  const w = e.currentTarget.dataset.close;
+  if (w === 'chat') closeChat();
+  if (w === 'map')  closeMap();
+}));
+
+
+// ── TTS — sentence-pipelined ────────────────────────────────────────────
+// Splits the reply on sentence boundaries and fires TTS for each chunk
+// in PARALLEL. First chunk starts playing as soon as it's back (~500–700ms),
+// not after the full reply is rendered to audio. Subsequent chunks queue
+// behind in order. Resolves when the LAST chunk finishes playing.
+
+let _currentAudio = null;
+let _audioQueueCancel = null;
+
+function splitSentences(text) {
+  if (!text) return [];
+  // Split at sentence terminators while keeping punctuation. Avoid splitting
+  // on common abbreviations (Sir., Dr., e.g., z.B.).
+  const cleaned = text.replace(/\b(Sir|Dr|Mr|Mrs|Ms|St|z\s?B|e\s?g|i\s?e)\.\s/gi, '$1<DOT> ');
+  const parts = cleaned.split(/(?<=[.!?…])\s+(?=[A-ZÄÖÜ])/);
+  return parts.map(s => s.replace(/<DOT>/g, '.').trim()).filter(Boolean);
+}
+
+async function fetchTtsBlob(text) {
+  const r = await fetch('/api/brain/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!r.ok) throw new Error('TTS ' + r.status);
+  return await r.blob();
+}
+
+function speak(fullText) {
+  return new Promise(async (resolve) => {
+    // Cancel any previous queue
+    try { _currentAudio?.pause(); } catch {}
+    if (_audioQueueCancel) { _audioQueueCancel(); }
+    let cancelled = false;
+    _audioQueueCancel = () => { cancelled = true; };
+
+    const sentences = splitSentences(fullText);
+    if (sentences.length === 0) return resolve();
+
+    // Fire ALL TTS requests in parallel
+    const blobPromises = sentences.map(s => fetchTtsBlob(s).catch(() => null));
+
+    // Play them in order — each waits for its own blob, plays, then next
+    for (let i = 0; i < blobPromises.length; i++) {
+      if (cancelled) break;
+      let blob;
+      try { blob = await blobPromises[i]; } catch { blob = null; }
+      if (!blob) continue;
+      if (cancelled) break;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      _currentAudio = audio;
+      await new Promise((res) => {
+        const done = () => { URL.revokeObjectURL(url); res(); };
+        audio.onended = done;
+        audio.onerror = done;
+        audio.play().catch(done);
+      });
+    }
+    _audioQueueCancel = null;
+    if (!cancelled) resolve();
+  });
+}
+
+
+// ── Speech-to-text via MediaRecorder + /api/brain/transcribe (Whisper) ──
+// Records audio between speech and silence using a simple RMS-based VAD,
+// posts each utterance to the server for transcription. Falls back to the
+// browser's SpeechRecognition if microphone access fails.
+
+const $micBtn = document.getElementById('mic-btn');
+let _stream = null, _ctx = null, _analyser = null, _recorder = null;
+let _chunks = [], _mime = 'audio/webm';
+let _voiceLoopActive = false;
+
+async function startRecog() {
+  if (_voiceLoopActive) return;
+  try {
+    _stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (e) {
+    setMode('idle', 'MIC PERMISSION DENIED');
+    return;
+  }
+  _voiceLoopActive = true;
+  window._wantsVoice = true;
+  $micBtn.textContent = '◉ VOICE ON';
+  loop();
+}
+
+// Garbage transcripts we get when the mic picks up nothing useful — we
+// drop these instead of sending them to Claude (otherwise Claude treats
+// stale conversational state as if the user repeated a command).
+const JUNK_TRANSCRIPTS = new Set([
+  '', '.', 'thank you.', 'thanks.', 'thank you', 'thanks',
+  'you', 'you.', 'okay.', 'okay', 'ok.', 'ok', 'mhm', 'hmm', 'uhm',
+  'yeah', 'yeah.', 'ja.', 'ja', 'mm.', 'mm',
+  'untertitelung des zdf für funk', 'untertitel im auftrag des zdf',
+]);
+
+function isJunkTranscript(t) {
+  const s = t.toLowerCase().trim();
+  if (s.length < 3) return true;
+  if (JUNK_TRANSCRIPTS.has(s)) return true;
+  // Mostly punctuation/single sounds
+  if (/^[\s.,!?'"-]+$/.test(s)) return true;
+  return false;
+}
+
+async function loop() {
+  while (window._wantsVoice) {
+    try {
+      const text = await listenOnce();
+      if (!window._wantsVoice) break;
+      if (text && !isJunkTranscript(text)) {
+        console.log('[STT]', text);
+        try {
+          await handleCommand(text);
+        } catch (e) {
+          console.error('[handleCommand crashed]', e);
+        }
+      } else if (text) {
+        console.log('[STT] dropping junk:', text);
+      }
+    } catch (e) {
+      console.error('[listenOnce crashed]', e);
+      await new Promise(r => setTimeout(r, 500));
+    }
+    setMode('idle', 'STANDBY');
+  }
+  stopAll();
+}
+
+function stopAll() {
+  _voiceLoopActive = false;
+  try { _recorder?.stop(); } catch {}
+  try { _ctx?.close(); } catch {}
+  _stream?.getTracks().forEach(t => t.stop());
+  _stream = _ctx = _analyser = _recorder = null;
+  setMode('idle', 'STANDBY');
+  $micBtn.textContent = '◉ ENABLE VOICE';
+}
+
+function listenOnce() {
+  return new Promise((resolve) => {
+    setMode('listening', 'LISTENING');
+    _ctx = new AudioContext();
+    const src = _ctx.createMediaStreamSource(_stream);
+    _analyser = _ctx.createAnalyser();
+    _analyser.fftSize = 1024;
+    src.connect(_analyser);
+    const buf = new Uint8Array(_analyser.frequencyBinCount);
+
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+      .find(m => MediaRecorder.isTypeSupported(m)) || 'audio/webm';
+    _mime = mime;
+    _recorder = new MediaRecorder(_stream, { mimeType: mime });
+    _chunks = [];
+    _recorder.ondataavailable = (e) => { if (e.data.size > 0) _chunks.push(e.data); };
+    _recorder.start(80);
+
+    // Silence hang: how long after the last loud frame before we submit.
+    // 1500ms tolerates breath pauses mid-sentence without cutting people off.
+    const SILENCE_HANG = 1500, MAX_LISTEN = 20000, MIN_SPEECH = 220;
+    const CALIBRATE = 400, MIN_THR = 0.012, MAX_THR = 0.05;
+    let speechStart = 0, lastLoud = 0, ever = false;
+    let noise = 0, calFrames = 0, thr = MAX_THR;
+    const started = performance.now();
+
+    function tick() {
+      if (!window._wantsVoice) return resolve(null);
+      _analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / buf.length);
+      const now = performance.now();
+      const el = now - started;
+
+      if (el < CALIBRATE) {
+        noise = (noise * calFrames + rms) / (calFrames + 1);
+        calFrames++;
+        if (el >= CALIBRATE - 16) thr = Math.min(MAX_THR, Math.max(MIN_THR, noise * 3));
+      }
+
+      if (rms >= thr) {
+        if (!ever) speechStart = now;
+        ever = true; lastLoud = now;
+      }
+      if (ever && (now - lastLoud) > SILENCE_HANG && (now - speechStart) > MIN_SPEECH) {
+        return finish(true);
+      }
+      if (!ever && el > MAX_LISTEN) return finish(false);
+      requestAnimationFrame(tick);
+    }
+
+    function finish(didSpeak) {
+      try { _ctx?.close(); } catch {}
+      _ctx = _analyser = null;
+      if (!_recorder || _recorder.state === 'inactive') return resolve(null);
+      _recorder.onstop = async () => {
+        if (!didSpeak || !_chunks.length) return resolve(null);
+        const blob = new Blob(_chunks, { type: _mime });
+        setMode('thinking', 'TRANSCRIBING');
+        try {
+          const fd = new FormData();
+          fd.append('audio', blob, 'audio.webm');
+          const r = await fetch('/api/brain/transcribe', { method: 'POST', body: fd });
+          if (!r.ok) return resolve(null);
+          const j = await r.json();
+          resolve((j.text || '').trim() || null);
+        } catch (e) {
+          console.warn('[STT] transcribe failed:', e.message);
+          resolve(null);
+        }
+      };
+      _recorder.stop();
+    }
+
+    requestAnimationFrame(tick);
+  });
+}
+
+function stopRecog() {
+  window._wantsVoice = false;
+  stopAll();
+}
+
+$micBtn.addEventListener('click', () => {
+  if (_voiceLoopActive) stopRecog(); else startRecog();
+});
+
+document.getElementById('ultra-btn').addEventListener('click', () => {
+  _ultraMode = !_ultraMode;
+  document.body.classList.toggle('ultra', _ultraMode);
+  document.getElementById('ultra-btn').textContent = _ultraMode ? '◉ ULTRA ON' : '◌ ULTRA MODE';
+  flash(_ultraMode ? 'ULTRA MODE ON · 3 AIs' : 'ULTRA OFF');
+});
+
+// ── Command matching — async so the master loop waits for each cycle ──
+async function handleCommand(raw) {
+  // Normalise: lowercase, strip punctuation, collapse whitespace
+  const text = raw.toLowerCase()
+    .replace(/[.,!?;:"']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  console.log('[handleCommand] normalised:', text);
+
+  // ULTRA MODE toggle
+  if (/\b(ultra|deep|think (deeper|harder)|denk gründlich nach|sei gründlich)\b/.test(text)) {
+    _ultraMode = !_ultraMode;
+    document.body.classList.toggle('ultra', _ultraMode);
+    flash(_ultraMode ? 'ULTRA MODE ON' : 'ULTRA MODE OFF');
+    return;
+  }
+
+  // Provider routing: "frag GPT ..." / "ask Gemini ..." routes ONE call
+  let pm;
+  if ((pm = raw.match(/\b(?:ask|frag|frage)\s+(gpt|chatgpt|openai|gemini|google|groq|llama|mistral)\b\s*(.+)?$/i))) {
+    const map = { gpt: 'openai', chatgpt: 'openai', openai: 'openai', gemini: 'gemini', google: 'gemini', groq: 'groq', llama: 'groq', mistral: 'mistral' };
+    _explicitProvider = map[pm[1].toLowerCase()];
+    const question = (pm[2] || '').trim();
+    if (question) { return await askJarvis(question); }
+    flash('READY: ' + _explicitProvider.toUpperCase());
+    return;
+  }
+
+  // CLOSE chat
+  if (/\b(close|hide|schließ|schließe|schliesse|mach zu)\s+(the |den |die |das )?chat\b/.test(text)
+      || /\bchat\s+(zu|schließen|schliessen)\b/.test(text)) {
+    console.log('→ closeChat');
+    closeChat(); return;
+  }
+  // CLOSE map
+  if (/\b(close|hide|schließ|schließe|schliesse|mach zu)\s+(the |die )?(map|karte)\b/.test(text)
+      || /\b(map|karte)\s+(zu|schließen|schliessen)\b/.test(text)) {
+    console.log('→ closeMap');
+    closeMap(); return;
+  }
+  // OPEN chat
+  if (/\b(show|open|öffne|zeig|zeige)\b/.test(text) && /\bchat\b/.test(text)) {
+    console.log('→ openChat');
+    openChat(); return;
+  }
+  if (/\bchat\s+(öffnen|auf)\b/.test(text)) {
+    console.log('→ openChat');
+    openChat(); return;
+  }
+
+  // OPEN map <city> — accept many phrasings
+  let m;
+  // "show (me) (a/the) map of LONDON" / "open map of X"
+  if ((m = text.match(/\b(?:show|open|display)\s+(?:me\s+)?(?:a\s+|the\s+)?map\s+of\s+([a-zäöüß\s-]+)$/))) {
+    return doMap(m[1]);
+  }
+  // "show (me) LONDON on (a/the) map"
+  if ((m = text.match(/\b(?:show|open|display)\s+(?:me\s+)?([a-zäöüß\s-]+?)\s+on\s+(?:a\s+|the\s+)?map\b/))) {
+    return doMap(m[1]);
+  }
+  // "show LONDON map"
+  if ((m = text.match(/\b(?:show|open|display)\s+([a-zäöüß\s-]+?)\s+map\b/))) {
+    return doMap(m[1]);
+  }
+  // "(zeig|öffne) (mir) (die) karte von BERLIN"
+  if ((m = text.match(/\b(?:zeig|zeige|öffne|öffnen)\s+(?:mir\s+)?(?:die\s+)?karte\s+(?:von|aus|für)\s+([a-zäöüß\s-]+)$/))) {
+    return doMap(m[1]);
+  }
+  // "(zeig|öffne) (mir) BERLIN auf (der) karte"
+  if ((m = text.match(/\b(?:zeig|zeige|öffne|öffnen)\s+(?:mir\s+)?([a-zäöüß\s-]+?)\s+auf\s+(?:der\s+|einer\s+)?karte\b/))) {
+    return doMap(m[1]);
+  }
+  // "karte von BERLIN"
+  if ((m = text.match(/\bkarte\s+(?:von|aus)\s+([a-zäöüß\s-]+)$/))) {
+    return doMap(m[1]);
+  }
+  // "map BERLIN" - very loose
+  if ((m = text.match(/^map\s+([a-zäöüß\s-]+)$/))) {
+    return doMap(m[1]);
+  }
+
+  // SEARCH the web
+  if ((m = text.match(/\b(?:search|google)\s+(?:for\s+)?(.+)$/))) {
+    return doSearch(m[1]);
+  }
+  if ((m = text.match(/\b(?:suche|such|google)\s+(?:nach\s+|für\s+)?(.+)$/))) {
+    return doSearch(m[1]);
+  }
+  // OPEN THE LAST LINK — uses the URL JARVIS last mentioned
+  if (/\b(?:open|öffne|öffnen|geh\s+zu|visit)\s+(?:the\s+|den\s+|diesen\s+)?(?:link|url|website|seite)\b/.test(text)) {
+    if (_lastUrl) {
+      console.log('→ open last URL', _lastUrl);
+      localOpen('url', _lastUrl);
+      flash('OPENING LINK');
+    } else {
+      flash('NO RECENT LINK');
+    }
+    return;
+  }
+
+  // OPEN a site / URL / known app — only fires when the target is a
+  // recognisable thing (avoids matching "open it for me" → fail).
+  if ((m = text.match(/\b(?:open|launch|start|go to|visit)\s+(?:up\s+|the\s+|app\s+)?(.+?)(?:\s+(?:please|for me|now|app))?$/))) {
+    const target = normaliseSpokenUrl(m[1]);
+    if (isOpenable(target)) return doOpenSite(target);
+  }
+  if ((m = text.match(/\b(?:öffne|öffnen|starte|geh zu|besuche|ruf auf)\s+(?:die\s+|den\s+|das\s+|app\s+)?(.+?)(?:\s+(?:bitte|für mich|jetzt|app))?$/))) {
+    const target = normaliseSpokenUrl(m[1]);
+    if (isOpenable(target)) return doOpenSite(target);
+  }
+  // TYPE text into chat input (writes but doesn't send)
+  if ((m = text.match(/\b(?:type|write)\s+(.+)$/))) {
+    return doType(m[1]);
+  }
+  if ((m = text.match(/\b(?:schreib|tippe|tipp)\s+(.+)$/))) {
+    return doType(m[1]);
+  }
+  // SEND text — write it AND send to Claude
+  if ((m = text.match(/\b(?:send|ask)\s+(.+)$/))) {
+    return doSend(m[1]);
+  }
+  if ((m = text.match(/\b(?:sende|frag|frage)\s+(.+)$/))) {
+    return doSend(m[1]);
+  }
+
+  // Default: answer via Claude
+  console.log('→ askJarvis');
+  await askJarvis(raw);
+}
+
+function doMap(city) {
+  const cleaned = city.trim().replace(/\s+please\s*$/i, '').replace(/\s+bitte\s*$/i, '').trim();
+  if (!cleaned) return;
+  console.log('→ openMap', cleaned);
+  openMap(cleaned);
+}
+
+// Known native apps (must match APP_ALIASES on the server)
+const KNOWN_APPS = new Set([
+  'safari','chrome','google chrome','firefox','spotify','music','notes','mail',
+  'messages','imessage','whatsapp','calendar','reminders','photos','maps',
+  'terminal','iterm','finder','preview','system settings','system preferences',
+  'discord','slack','telegram','zoom','vscode','visual studio code','cursor',
+  'figma','notion','obsidian','arc','todoist','app store','activity monitor',
+  'calculator','facetime','jarvis',
+]);
+
+// Does this raw target look like something we can actually open?
+function isOpenable(raw) {
+  const cleaned = raw.toLowerCase().trim().replace(/[.,!?;:"']/g, '').trim();
+  if (!cleaned) return false;
+  if (cleaned.length > 40) return false;             // probably a sentence
+  if (KNOWN_APPS.has(cleaned)) return true;
+  if (cleaned in KNOWN_SITES) return true;
+  // URL-ish (contains dot, no spaces)
+  if (!cleaned.includes(' ') && /\.[a-z]{2,}/.test(cleaned)) return true;
+  if (/^https?:\/\//.test(cleaned)) return true;
+  // Partial match against any known target
+  for (const k of KNOWN_APPS) if (cleaned === k || cleaned.startsWith(k + ' ')) return true;
+  for (const k in KNOWN_SITES) if (cleaned === k || cleaned.startsWith(k + ' ')) return true;
+  return false;
+}
+
+// Known sites — voice-friendly aliases → URL
+const KNOWN_SITES = {
+  'youtube':     'https://youtube.com',
+  'google':      'https://google.com',
+  'gmail':       'https://mail.google.com',
+  'mail':        'https://mail.google.com',
+  'github':      'https://github.com',
+  'spotify':     'https://open.spotify.com',
+  'twitter':     'https://twitter.com',
+  'x':           'https://twitter.com',
+  'reddit':      'https://reddit.com',
+  'instagram':   'https://instagram.com',
+  'whatsapp':    'https://web.whatsapp.com',
+  'netflix':     'https://netflix.com',
+  'amazon':      'https://amazon.de',
+  'wikipedia':   'https://wikipedia.org',
+  'chatgpt':     'https://chat.openai.com',
+  'claude':      'https://claude.ai',
+  'linkedin':    'https://linkedin.com',
+  'facebook':    'https://facebook.com',
+  'twitch':      'https://twitch.tv',
+  'discord':     'https://discord.com/app',
+  'maps':        'https://maps.google.com',
+  'google maps': 'https://maps.google.com',
+  'drive':       'https://drive.google.com',
+  'calendar':    'https://calendar.google.com',
+  'notion':      'https://notion.so',
+  'figma':       'https://figma.com',
+  'apple':       'https://apple.com',
+};
+
+async function doOpenSite(raw) {
+  const cleaned = raw.toLowerCase().trim()
+    .replace(/[.,!?;:"']/g, '')
+    .replace(/\s+(please|bitte)\s*$/g, '')
+    .trim();
+  console.log('→ doOpenSite', cleaned);
+
+  // 1) Direct URL → open in OS default browser (so it goes to its own window)
+  if (/^https?:\/\//.test(cleaned) || /\.[a-z]{2,}$/.test(cleaned)) {
+    const url = cleaned.startsWith('http') ? cleaned : 'https://' + cleaned.replace(/\s+/g, '');
+    const ok = await localOpen('url', url);
+    if (!ok) window.open(url, '_blank', 'noopener');
+    flash('OPENING ' + cleaned.toUpperCase());
+    return;
+  }
+
+  // 2) Try as native macOS app first (the local-only endpoint will say if it worked)
+  const appOk = await localOpen('app', cleaned);
+  if (appOk) { flash('OPENING APP ' + cleaned.toUpperCase()); return; }
+
+  // 3) Known web alias → open URL in default browser
+  if (KNOWN_SITES[cleaned]) {
+    const ok = await localOpen('url', KNOWN_SITES[cleaned]);
+    if (!ok) window.open(KNOWN_SITES[cleaned], '_blank', 'noopener');
+    flash('OPENING ' + cleaned.toUpperCase());
+    return;
+  }
+  for (const key in KNOWN_SITES) {
+    if (cleaned.includes(key)) {
+      const ok = await localOpen('url', KNOWN_SITES[key]);
+      if (!ok) window.open(KNOWN_SITES[key], '_blank', 'noopener');
+      flash('OPENING ' + key.toUpperCase());
+      return;
+    }
+  }
+
+  // 4) Last resort: Google search
+  doSearch(cleaned);
+}
+
+async function localOpen(kind, target) {
+  try {
+    const r = await fetch('/api/brain/local/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, target }),
+    });
+    return r.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+function doSearch(query) {
+  const q = query.trim().replace(/[.,!?;:"']/g, '').replace(/\s+(please|bitte)\s*$/g, '').trim();
+  if (!q) return;
+  console.log('→ doSearch', q);
+  const url = 'https://www.google.com/search?q=' + encodeURIComponent(q);
+  window.open(url, '_blank', 'noopener');
+  flash('SEARCHING "' + q.toUpperCase() + '"');
+}
+
+function doType(text) {
+  const t = text.trim();
+  console.log('→ doType', t);
+  if (!$chatPane.classList.contains('open')) openChat();
+  $chatInput.value = t;
+  $chatInput.focus();
+  flash('TYPED');
+}
+
+async function doSend(text) {
+  const t = text.trim();
+  console.log('→ doSend', t);
+  if (!$chatPane.classList.contains('open')) openChat();
+  $chatInput.value = '';
+  await askJarvis(t);
+}
+
+// Brief on-screen toast confirming an action
+function flash(msg) {
+  let el = document.getElementById('flash');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'flash';
+    el.style.cssText = 'position:fixed; top:80px; left:50%; transform:translateX(-50%); ' +
+      'padding:10px 22px; border:1px solid rgba(0,220,255,0.55); ' +
+      'background:rgba(0,30,50,0.85); color:#B7ECFF; ' +
+      'font-family:"SF Mono",monospace; font-size:11px; letter-spacing:3px; ' +
+      'border-radius:99px; z-index:50; transition:opacity 0.4s; ' +
+      'box-shadow:0 0 20px rgba(0,220,255,0.25);';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => { el.style.opacity = '0'; }, 2200);
+}
+
+// Preload voices (some browsers populate them async)
+window.speechSynthesis?.getVoices();
+window.speechSynthesis && (window.speechSynthesis.onvoiceschanged = () => {});
+</script>
+</body>
+</html>

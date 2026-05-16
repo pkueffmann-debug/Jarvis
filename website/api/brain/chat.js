@@ -1,0 +1,364 @@
+// /api/brain/chat — single-model JARVIS turn.
+//
+// Body: { messages, provider?, model?, tier? }
+//   messages   = canonical [{role, content}] history (last N)
+//   provider   = anthropic|openai|gemini|groq|mistral  (default: anthropic)
+//   model/tier = optional override
+//
+// Auth-gated. Loads user_facts into the system prompt. Runs a tool-use
+// loop (max 5 iters) where tool calls execute server-side. Returns
+// { reply, actions, used: { provider, model } }.
+
+const { execFile } = require('child_process');
+const { gate } = require('../_lib/auth');
+const { askProvider, availableProviders } = require('../_lib/providers');
+const { loadFactsFor, rememberFact, recallFacts, forgetFact } = require('./memory');
+
+// ── Tools available to JARVIS ─────────────────────────────────────────────
+const BRAIN_TOOLS = [
+  {
+    name: 'web_search',
+    description: 'Search the web (DuckDuckGo Instant Answer). Returns abstract + related links.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+  },
+  {
+    name: 'get_weather',
+    description: 'Current weather + short forecast via wttr.in.',
+    input_schema: { type: 'object', properties: { location: { type: 'string' } }, required: ['location'] },
+  },
+  {
+    name: 'open_app',
+    description: 'Open a native macOS app on the user\'s machine. Use for any "open / launch / start" intent.',
+    input_schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+  },
+  {
+    name: 'open_url',
+    description: 'Open a URL in the user\'s default browser.',
+    input_schema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] },
+  },
+  {
+    name: 'web_search_open',
+    description: 'Open a Google search results page in the browser.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+  },
+  {
+    name: 'show_map',
+    description: 'Open a fullscreen dark map of a city in the brain UI.',
+    input_schema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+  },
+  {
+    name: 'show_chat',
+    description: 'Open the writing chat overlay.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'remember_fact',
+    description: 'Store a long-term fact about the user (their preferences, ongoing projects, friends, schedule, etc.). Use whenever the user reveals something worth remembering across sessions.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fact: { type: 'string', description: 'One short sentence stating the fact.' },
+        category: { type: 'string', description: '"preference" | "project" | "contact" | "schedule" | "general"' },
+        importance: { type: 'integer', description: '1 (trivia) to 10 (always load).' },
+      },
+      required: ['fact'],
+    },
+  },
+  {
+    name: 'recall_facts',
+    description: 'Search stored facts about the user by keyword. Optional — top facts are already in the system prompt.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' } } },
+  },
+  {
+    name: 'forget_fact',
+    description: 'Delete a stored fact by ID (only after the user explicitly asks to forget it).',
+    input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'youtube_play',
+    description: 'Find and start a YouTube video for the user. Picks the most-viewed video that matches the query. Use whenever the user asks to play / watch / show / listen to something on YouTube — even with vague titles ("spiel Bohemian Rhapsody", "play that Iron Man trailer", "do mal Lo-Fi Hip Hop"). The video opens with autoplay in the default browser.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search terms — be liberal, the API ranks for relevance. Add "official" / "live" / "lyrics" if the user implies it.' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'twitch_open_channel',
+    description: 'Open a Twitch channel in the browser. Use when the user asks to watch a streamer.',
+    input_schema: {
+      type: 'object',
+      properties: { channel: { type: 'string', description: 'Twitch channel name (no twitch.tv/ prefix).' } },
+      required: ['channel'],
+    },
+  },
+  {
+    name: 'ask_other_ai',
+    description: 'Get a second opinion from another LLM provider on a question. Use when the user asks "what does GPT/Gemini think" or when you want to validate a controversial answer.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        provider: { type: 'string', description: '"openai" | "gemini" | "groq" | "mistral"' },
+        question: { type: 'string' },
+      },
+      required: ['provider', 'question'],
+    },
+  },
+];
+
+const APP_ALIASES = {
+  'safari':'Safari','chrome':'Google Chrome','google chrome':'Google Chrome','firefox':'Firefox',
+  'spotify':'Spotify','music':'Music','notes':'Notes','mail':'Mail','messages':'Messages',
+  'imessage':'Messages','whatsapp':'WhatsApp','calendar':'Calendar','reminders':'Reminders',
+  'photos':'Photos','maps':'Maps','terminal':'Terminal','iterm':'iTerm','finder':'Finder',
+  'preview':'Preview','system settings':'System Settings','discord':'Discord','slack':'Slack',
+  'telegram':'Telegram','zoom':'zoom.us','vscode':'Visual Studio Code','cursor':'Cursor',
+  'figma':'Figma','notion':'Notion','obsidian':'Obsidian','arc':'Arc','calculator':'Calculator',
+  'facetime':'FaceTime','jarvis':'JARVIS',
+};
+
+async function execBrainTool(userId, name, input, uiActions) {
+  try {
+    if (name === 'open_app') {
+      const key = (input.name || '').toLowerCase().trim();
+      const appName = APP_ALIASES[key] || input.name;
+      return await new Promise((resolve) => {
+        execFile('open', ['-a', appName], (err) => {
+          resolve(err ? { ok: false, error: `App "${appName}" not found` } : { ok: true, opened: appName });
+        });
+      });
+    }
+    if (name === 'open_url') {
+      let url = input.url || '';
+      if (!/^https?:\/\//.test(url)) url = 'https://' + url.replace(/^\/+/, '');
+      return await new Promise((resolve) => {
+        execFile('open', [url], (err) => {
+          resolve(err ? { ok: false, error: err.message } : { ok: true, opened: url });
+        });
+      });
+    }
+    if (name === 'web_search_open') {
+      const url = 'https://www.google.com/search?q=' + encodeURIComponent(input.query || '');
+      return await new Promise((resolve) => {
+        execFile('open', [url], (err) => {
+          resolve(err ? { ok: false, error: err.message } : { ok: true, opened: url });
+        });
+      });
+    }
+    if (name === 'show_map') { uiActions.push({ type: 'map', city: input.city }); return { ok: true }; }
+    if (name === 'show_chat') { uiActions.push({ type: 'chat' }); return { ok: true }; }
+
+    if (name === 'web_search') {
+      const q = encodeURIComponent(input.query || '');
+      const r = await fetch(`https://api.duckduckgo.com/?q=${q}&format=json&no_html=1&skip_disambig=1`);
+      const j = await r.json();
+      return {
+        abstract: j.AbstractText || j.Abstract || '',
+        url: j.AbstractURL || '',
+        related: (j.RelatedTopics || []).slice(0, 5).map(t => ({
+          text: (t.Text || '').slice(0, 200), url: t.FirstURL || '',
+        })).filter(t => t.text),
+      };
+    }
+    if (name === 'get_weather') {
+      const loc = encodeURIComponent(input.location || '');
+      const r = await fetch(`https://wttr.in/${loc}?format=j1`);
+      if (!r.ok) return { error: `wttr.in ${r.status}` };
+      const j = await r.json();
+      const cur = (j.current_condition || [])[0] || {};
+      return {
+        location: input.location, condition: cur.weatherDesc?.[0]?.value || '',
+        temp_c: cur.temp_C, feels_c: cur.FeelsLikeC, wind_kmh: cur.windspeedKmph,
+        humidity: cur.humidity,
+      };
+    }
+
+    if (name === 'remember_fact') {
+      const saved = await rememberFact(userId, input.fact, input.category, input.importance);
+      return { ok: true, id: saved?.id };
+    }
+    if (name === 'recall_facts') {
+      const facts = await recallFacts(userId, input.query || null);
+      return { facts: facts.slice(0, 20) };
+    }
+    if (name === 'forget_fact') {
+      await forgetFact(userId, input.id);
+      return { ok: true };
+    }
+
+    if (name === 'youtube_play') {
+      const q = (input.query || '').trim();
+      if (!q) return { error: 'query required' };
+      const apiKey = process.env.YOUTUBE_API_KEY;
+      // Fallback path: no API key → just open the search page.
+      if (!apiKey) {
+        const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+        return await new Promise((resolve) => {
+          execFile('open', [url], (err) => {
+            resolve(err ? { ok: false, error: err.message } : { ok: true, fallback: 'no_api_key', opened: url });
+          });
+        });
+      }
+      // Live path: search via YouTube Data API, take the most-viewed match.
+      try {
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(q)}&type=video&order=viewCount&maxResults=5&key=${apiKey}`;
+        const r = await fetch(url);
+        if (!r.ok) {
+          const txt = await r.text();
+          return { ok: false, error: `youtube ${r.status}: ${txt.slice(0, 120)}` };
+        }
+        const data = await r.json();
+        const top = (data.items || []).find(it => it.id?.videoId);
+        if (!top) return { ok: false, error: 'no matching videos' };
+        const videoId = top.id.videoId;
+        const watchUrl = `https://www.youtube.com/watch?v=${videoId}&autoplay=1`;
+        await new Promise((resolve) => execFile('open', [watchUrl], () => resolve()));
+        return {
+          ok: true,
+          opened: watchUrl,
+          title: top.snippet?.title,
+          channel: top.snippet?.channelTitle,
+        };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    }
+    if (name === 'twitch_open_channel') {
+      const ch = (input.channel || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (!ch) return { error: 'channel required' };
+      const url = `https://www.twitch.tv/${ch}`;
+      return await new Promise((resolve) => {
+        execFile('open', [url], (err) => {
+          resolve(err ? { ok: false, error: err.message } : { ok: true, opened: url });
+        });
+      });
+    }
+    if (name === 'ask_other_ai') {
+      const r = await askProvider({
+        provider: input.provider,
+        system: 'Answer in 1–3 short sentences.',
+        messages: [{ role: 'user', content: input.question }],
+        max_tokens: 400,
+      });
+      return { provider: r.provider, text: r.text };
+    }
+
+    return { error: `unknown tool: ${name}` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// ── System prompt builder ─────────────────────────────────────────────────
+function buildSystemPrompt({ now, facts, providers }) {
+  const dateStr = now.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  let memSection = '';
+  if (facts && facts.length) {
+    memSection = '\n\nWAS DU ÜBER DEN NUTZER WEISST (langfristige Memory):\n'
+      + facts.map(f => `- [${f.category}] ${f.fact}`).join('\n')
+      + '\n(Falls etwas neu auftaucht, ruf remember_fact auf. Falls etwas falsch ist, forget_fact + remember_fact.)';
+  }
+
+  return `Du bist JARVIS — Pauls persönlicher KI-Assistent.
+Aktuelles Datum: ${dateStr}, ${timeStr} Uhr (Europe/Berlin).
+Verfügbare AI-Provider als Tools: ${providers.join(', ')}.
+
+Persönlichkeit: kompetent, knapp, höflich-trocken im Iron-Man-Stil.
+- Antworte standardmäßig auf Deutsch. Englisch nur wenn Nutzer Englisch schreibt.
+- Halte jede Antwort auf 1–3 kurze Sätze. Keine Aufzählungen, keine Markdown.
+- Sprich den Nutzer mit „Sir“ an.
+- KEINE Disclaimer. Du HAST diese Tools — nutze sie sofort wenn passend:
+  · open_app / open_url / web_search_open / show_map / show_chat — native Aktionen
+  · youtube_play — Video auf YouTube finden (sortiert nach Views) und abspielen
+  · twitch_open_channel — Twitch-Channel öffnen
+  · web_search / get_weather — Live-Daten
+  · remember_fact / recall_facts / forget_fact — persistente Memory
+  · ask_other_ai — zweite Meinung von GPT / Gemini / Groq / Mistral
+- Ruf open_* NUR auf wenn die LETZTE Nutzer-Nachricht eindeutig danach fragt. Wiederhole keine alten Tool-Calls.
+- Bei unklarem Input antworte „Verzeihung, Sir?“ und ruf KEIN Tool auf.
+- Bei Memory: wenn der Nutzer etwas Persönliches erzählt (Vorlieben, Projekte, Kontakte, Termine), ruf SOFORT remember_fact auf.${memSection}`;
+}
+
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') { res.statusCode = 405; return res.end('method not allowed'); }
+
+  const user = await gate(req, res);
+  if (!user) return;
+
+  const body = req.body && Object.keys(req.body).length ? req.body : await readJSON(req);
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  if (!messages.length) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'messages required' })); }
+
+  const provider = body.provider || 'anthropic';
+  const model    = body.model;
+  // Default to the FAST tier per provider — Claude Haiku, GPT-4o-mini,
+  // Gemini Flash Lite, Mistral Small. Cuts LLM latency 2–4×.
+  // Ultra mode (debate.js) keeps the slow/smart tier for quality.
+  const tier     = body.tier || 'fast';
+  const providers = availableProviders();
+
+  try {
+    const facts = await loadFactsFor(user.id);
+    const system = buildSystemPrompt({ now: new Date(), facts, providers });
+
+    const history = [...messages];
+    const uiActions = [];
+    let finalText = '';
+    let usedModel = null;
+
+    // 3 iters covers: text-only / single tool / two tools chained. Anything
+    // deeper is rare in normal mode and just adds latency.
+    for (let iter = 0; iter < 3; iter++) {
+      const result = await askProvider({
+        provider, model, tier, system, messages: history, tools: BRAIN_TOOLS,
+        // Keep replies short — voice answers should be 1–3 sentences anyway.
+        max_tokens: 280,
+        temperature: 0.5,
+      });
+      usedModel = result.raw?.model || result.raw?.candidates?.[0]?.modelVersion || model || provider;
+      if (result.text) finalText += result.text;
+
+      if (!result.toolCalls.length) break;
+
+      // Append assistant turn (with tool_use blocks in canonical form)
+      const assistantBlocks = [];
+      if (result.text) assistantBlocks.push({ type: 'text', text: result.text });
+      for (const tc of result.toolCalls) {
+        assistantBlocks.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+      }
+      history.push({ role: 'assistant', content: assistantBlocks });
+
+      const toolResults = [];
+      for (const tc of result.toolCalls) {
+        console.log('[brain/chat] tool_use', tc.name, JSON.stringify(tc.input).slice(0, 120));
+        const r = await execBrainTool(user.id, tc.name, tc.input, uiActions);
+        toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: JSON.stringify(r) });
+      }
+      history.push({ role: 'user', content: toolResults });
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      reply: finalText.trim() || 'Verstanden, Sir.',
+      actions: uiActions,
+      used: { provider, model: usedModel },
+    }));
+  } catch (e) {
+    console.error('[brain/chat]', e);
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: e.message }));
+  }
+};
+
+function readJSON(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch { resolve({}); } });
+    req.on('error', () => resolve({}));
+  });
+}

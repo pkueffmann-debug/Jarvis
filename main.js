@@ -78,27 +78,34 @@ ipcMain.on('confirm-action', (_e, confirmed) => {
 
 // ── Window ─────────────────────────────────────────────────────────────────
 
-// ── Window modes ──────────────────────────────────────────────────────────
-// "hud"  → 500×500 floating HUD (Iron-Man style canvas circle, voice-only)
-// "chat" → 900×700 (HUD on top + chat below)
-// "map"  → 1300×700 (Leaflet map left, HUD shrunk to 350 right)
-const WINDOW_SIZES = {
-  hud:  { width: 1100, height: 620 },
-  chat: { width: 900,  height: 700 },
-  map:  { width: 1300, height: 700 },
-};
-let _windowMode = 'chat';  // default for cold start; wake-word switches to 'hud'
+// ── Window ────────────────────────────────────────────────────────────────
+// JARVIS Electron is now a background process. The visible UI is the
+// 300×60 floating indicator (pulse dot + "JARVIS" wordmark). Everything
+// chat / HUD / map related lives at daylens.dev/brain and talks to this
+// process via the WebSocket bridge.
+const INDICATOR_W = 300;
+const INDICATOR_H = 60;
+let _windowMode = 'indicator';  // kept so existing setWindowMode calls don't crash
 
 function createWindow() {
-  const { width, height } = WINDOW_SIZES[_windowMode];
+  const work = screen.getPrimaryDisplay().workArea;
   mainWindow = new BrowserWindow({
-    width, height,
-    show: false, frame: false, resizable: false,
-    center: true,
+    width:  INDICATOR_W,
+    height: INDICATOR_H,
+    x: work.x + work.width - INDICATOR_W - 16,
+    y: work.y + 16,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: true,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
     transparent: true,
-    alwaysOnTop: _windowMode === 'hud',
-    skipTaskbar: false, hasShadow: false,
-    backgroundColor: _windowMode === 'hud' ? '#000000' : undefined,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
     icon: path.join(__dirname, 'assets', 'jarvis.icns'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -106,6 +113,9 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
+  // Float above full-screen apps too.
+  try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch {}
+  try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
   // Reset the "activated by wake-word" gate whenever the user moves away
   // from JARVIS. The next wake-word detection is then allowed to focus us
   // again; further detections while we still hold focus are ignored.
@@ -138,24 +148,11 @@ function createWindow() {
   }
 }
 
-function setWindowMode(mode) {
-  console.log('[WindowMode] setWindowMode called with mode =', mode);
-  if (!WINDOW_SIZES[mode] || !mainWindow) {
-    console.log('[WindowMode] FAIL — WINDOW_SIZES[mode] =', !!WINDOW_SIZES[mode], ', mainWindow =', !!mainWindow);
-    return { ok: false, error: 'unknown mode' };
-  }
-  _windowMode = mode;
-  const { width, height } = WINDOW_SIZES[mode];
-  // Re-center and resize. setBounds animates on macOS by default.
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const cx = Math.round(display.workArea.x + (display.workArea.width  - width)  / 2);
-  const cy = Math.round(display.workArea.y + (display.workArea.height - height) / 2);
-  mainWindow.setBounds({ x: cx, y: cy, width, height }, true);
-  // HUD and map float on top; chat is a normal window.
-  mainWindow.setAlwaysOnTop(mode === 'hud' || mode === 'map');
-  safeSend('window-mode-changed', mode);
-  console.log('[WindowMode] resized to', width, 'x', height, 'and queued window-mode-changed for renderer');
-  return { ok: true, mode };
+// Indicator window has a fixed size; mode-switching from the old multi-mode
+// UI is now a no-op kept only so legacy IPC callers (wake-word callback,
+// `set-window-mode` from anywhere) don't error out.
+function setWindowMode(_mode) {
+  return { ok: true, mode: 'indicator', noop: true };
 }
 
 // ── Tray ───────────────────────────────────────────────────────────────────
